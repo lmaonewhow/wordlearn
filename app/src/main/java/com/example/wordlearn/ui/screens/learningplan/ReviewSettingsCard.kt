@@ -10,15 +10,22 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
 import com.example.wordlearn.ui.viewmodel.LearningPlanViewModel
+import com.example.wordlearn.ui.theme.ThemeManager
 
 @Composable
 fun ReviewSettingsCard(viewModel: LearningPlanViewModel) {
     val reviewSettings by viewModel.reviewSettings.collectAsState()
+    val isDarkMode by ThemeManager.isDarkMode
     
-    ElevatedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -31,7 +38,10 @@ fun ReviewSettingsCard(viewModel: LearningPlanViewModel) {
             )
             
             // 复习间隔设置
-            Text("复习间隔", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "复习间隔",
+                style = MaterialTheme.typography.titleMedium
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -41,7 +51,17 @@ fun ReviewSettingsCard(viewModel: LearningPlanViewModel) {
                     FilterChip(
                         selected = isSelected,
                         onClick = { viewModel.updateIntervalDays(days) },
-                        label = { Text("${days}天") }
+                        label = { 
+                            Text(
+                                "${days}天",
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                       else MaterialTheme.colorScheme.onSurface
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
                     )
                 }
             }
@@ -52,7 +72,10 @@ fun ReviewSettingsCard(viewModel: LearningPlanViewModel) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("最低正确率要求")
+                Text(
+                    "最低正确率要求",
+                    color = MaterialTheme.colorScheme.onSurface
+                )
                 var text by remember { mutableStateOf((reviewSettings.minCorrectRate * 100).toInt().toString()) }
                 OutlinedTextField(
                     value = text,
@@ -64,8 +87,14 @@ fun ReviewSettingsCard(viewModel: LearningPlanViewModel) {
                         }
                     },
                     modifier = Modifier.width(100.dp),
-                    suffix = { Text("%") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    suffix = { Text("%", color = MaterialTheme.colorScheme.onSurface) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface
+                    )
                 )
             }
         }

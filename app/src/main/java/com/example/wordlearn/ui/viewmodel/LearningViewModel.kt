@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.wordlearn.App
 import com.example.wordlearn.data.model.BookType
 import com.example.wordlearn.data.model.VocabularyBook
 import com.example.wordlearn.data.model.Word
@@ -33,7 +34,7 @@ sealed class LearningState {
 }
 
 class LearningViewModel(application: Application) : AndroidViewModel(application) {
-    private val repository = VocabularyRepository(application)
+    private val repository = (application as App).vocabularyRepository
     private val learningPlanRepository = LearningPlanRepository(application)
 
     // 学习状态
@@ -220,7 +221,8 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
                         word = word.word,
                         ukPhonetic = word.ukPhonetic.ifEmpty { "/" + word.word + "/" },
                         usPhonetic = word.usPhonetic.ifEmpty { "/" + word.word + "/" },
-                        example = word.example.ifEmpty { "${word.word} - ${word.meaning}" }
+                        example = word.example.ifEmpty { "${word.word} - ${word.meaning}" },
+                        definition = word.meaning
                     )
                 } else {
                     Log.d(TAG, "没有更多单词需要加载")
@@ -283,7 +285,8 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
                             word = nextWord.word,
                             ukPhonetic = nextWord.ukPhonetic.ifEmpty { "/" + nextWord.word + "/" },
                             usPhonetic = nextWord.usPhonetic.ifEmpty { "/" + nextWord.word + "/" },
-                            example = nextWord.example.ifEmpty { "${nextWord.word} - ${nextWord.meaning}" }
+                            example = nextWord.example.ifEmpty { "${nextWord.word} - ${nextWord.meaning}" },
+                            definition = nextWord.meaning
                         )
                     } else {
                         // 学习完成
@@ -403,7 +406,8 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
                             word = firstWord.word,
                             ukPhonetic = firstWord.ukPhonetic.ifEmpty { "/" + firstWord.word + "/" },
                             usPhonetic = firstWord.usPhonetic.ifEmpty { "/" + firstWord.word + "/" },
-                            example = firstWord.example.ifEmpty { "${firstWord.word} - ${firstWord.meaning}" }
+                            example = firstWord.example.ifEmpty { "${firstWord.word} - ${firstWord.meaning}" },
+                            definition = firstWord.meaning
                         )
                         _learningState.value = LearningState.Success
                         Log.d(TAG, "已加载第一个单词：${firstWord.word}")

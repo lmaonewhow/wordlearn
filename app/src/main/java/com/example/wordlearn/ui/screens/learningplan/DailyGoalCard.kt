@@ -10,17 +10,23 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
 import com.example.wordlearn.ui.viewmodel.LearningPlanViewModel
+import com.example.wordlearn.ui.theme.ThemeManager
 import java.time.DayOfWeek
 
 @Composable
 fun DailyGoalCard(viewModel: LearningPlanViewModel) {
     val dailyGoal by viewModel.dailyGoal.collectAsState()
     val dayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+    val isDarkMode by ThemeManager.isDarkMode
     
-    ElevatedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isDarkMode) Color(0xFF2D2D2D) else Color.White
+        )
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -29,7 +35,8 @@ fun DailyGoalCard(viewModel: LearningPlanViewModel) {
             Text(
                 text = "每日学习目标",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = if (isDarkMode) Color.White else Color.Black
             )
             
             // 新词数量设置
@@ -38,7 +45,10 @@ fun DailyGoalCard(viewModel: LearningPlanViewModel) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("每日新词数量")
+                Text(
+                    "每日新词数量",
+                    color = if (isDarkMode) Color.White else Color.Black
+                )
                 var text by remember { mutableStateOf(dailyGoal.newWordsCount.toString()) }
                 OutlinedTextField(
                     value = text,
@@ -50,8 +60,14 @@ fun DailyGoalCard(viewModel: LearningPlanViewModel) {
                         }
                     },
                     modifier = Modifier.width(100.dp),
-                    suffix = { Text("词") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    suffix = { Text("词", color = if (isDarkMode) Color.White else Color.Black) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = if (isDarkMode) Color.Gray else Color.Black,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedTextColor = if (isDarkMode) Color.White else Color.Black,
+                        focusedTextColor = if (isDarkMode) Color.White else Color.Black
+                    )
                 )
             }
             
@@ -61,7 +77,10 @@ fun DailyGoalCard(viewModel: LearningPlanViewModel) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("每日复习数量")
+                Text(
+                    "每日复习数量",
+                    color = if (isDarkMode) Color.White else Color.Black
+                )
                 var text by remember { mutableStateOf(dailyGoal.reviewWordsCount.toString()) }
                 OutlinedTextField(
                     value = text,
@@ -73,8 +92,14 @@ fun DailyGoalCard(viewModel: LearningPlanViewModel) {
                         }
                     },
                     modifier = Modifier.width(100.dp),
-                    suffix = { Text("词") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    suffix = { Text("词", color = if (isDarkMode) Color.White else Color.Black) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = if (isDarkMode) Color.Gray else Color.Black,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedTextColor = if (isDarkMode) Color.White else Color.Black,
+                        focusedTextColor = if (isDarkMode) Color.White else Color.Black
+                    )
                 )
             }
             
@@ -84,7 +109,10 @@ fun DailyGoalCard(viewModel: LearningPlanViewModel) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("每日学习时长")
+                Text(
+                    "每日学习时长",
+                    color = if (isDarkMode) Color.White else Color.Black
+                )
                 var text by remember { mutableStateOf(dailyGoal.learningTimeMinutes.toString()) }
                 OutlinedTextField(
                     value = text,
@@ -96,13 +124,23 @@ fun DailyGoalCard(viewModel: LearningPlanViewModel) {
                         }
                     },
                     modifier = Modifier.width(100.dp),
-                    suffix = { Text("分钟") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    suffix = { Text("分钟", color = if (isDarkMode) Color.White else Color.Black) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = if (isDarkMode) Color.Gray else Color.Black,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedTextColor = if (isDarkMode) Color.White else Color.Black,
+                        focusedTextColor = if (isDarkMode) Color.White else Color.Black
+                    )
                 )
             }
             
             // 学习日选择
-            Text("学习日", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "学习日",
+                style = MaterialTheme.typography.titleMedium,
+                color = if (isDarkMode) Color.White else Color.Black
+            )
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -111,17 +149,26 @@ fun DailyGoalCard(viewModel: LearningPlanViewModel) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+                ) {
                     DayOfWeek.values().take(4).forEachIndexed { index, day ->
-                    val isSelected = dailyGoal.activeDays.contains(day)
-                    ElevatedFilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.toggleActiveDay(day) },
-                        label = { 
-                            Text(dayNames[index])
+                        val isSelected = dailyGoal.activeDays.contains(day)
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { viewModel.toggleActiveDay(day) },
+                            label = { 
+                                Text(
+                                    dayNames[index],
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                           else if (isDarkMode) Color.White
+                                           else Color.Black
+                                )
                             },
-                            modifier = Modifier.weight(1f)
-                    )
+                            modifier = Modifier.weight(1f),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                containerColor = if (isDarkMode) Color(0xFF3D3D3D) else Color(0xFFF0F0F0)
+                            )
+                        )
                     }
                 }
                 
@@ -132,13 +179,22 @@ fun DailyGoalCard(viewModel: LearningPlanViewModel) {
                 ) {
                     DayOfWeek.values().takeLast(3).forEachIndexed { index, day ->
                         val isSelected = dailyGoal.activeDays.contains(day)
-                        ElevatedFilterChip(
+                        FilterChip(
                             selected = isSelected,
                             onClick = { viewModel.toggleActiveDay(day) },
                             label = { 
-                                Text(dayNames[index + 4])
+                                Text(
+                                    dayNames[index + 4],
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                           else if (isDarkMode) Color.White
+                                           else Color.Black
+                                )
                             },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                containerColor = if (isDarkMode) Color(0xFF3D3D3D) else Color(0xFFF0F0F0)
+                            )
                         )
                     }
                     // 添加一个空的 Spacer 来保持对齐

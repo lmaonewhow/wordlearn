@@ -1,5 +1,6 @@
 package com.example.wordlearn.ui.screens.challenge
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,6 +13,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -71,7 +77,8 @@ fun ChallengeScreen(
                     selectedWord = selectedWord,
                     selectedMeaning = selectedMeaning,
                     onWordSelected = { word -> viewModel.selectWord(word) },
-                    onMeaningSelected = { meaning -> viewModel.selectMeaning(meaning) }
+                    onMeaningSelected = { meaning -> viewModel.selectMeaning(meaning) },
+                    viewModel = viewModel
                 )
             }
 
@@ -93,8 +100,31 @@ private fun GameContent(
     selectedWord: String?,
     selectedMeaning: String?,
     onWordSelected: (String) -> Unit,
-    onMeaningSelected: (String) -> Unit
+    onMeaningSelected: (String) -> Unit,
+    viewModel: ChallengeViewModel = viewModel()
 ) {
+    // 获取已匹配的单词对
+    val matchedPairs by viewModel.matchedPairs.collectAsState()
+    
+    // 记住释义的随机顺序
+    val shuffledMeanings = remember(gameState) {
+        gameState.map { it.second }.shuffled()
+    }
+
+    // 获取主题颜色
+    val colors = listOf(
+        MaterialTheme.colorScheme.primary,
+        MaterialTheme.colorScheme.secondary,
+        MaterialTheme.colorScheme.tertiary,
+        MaterialTheme.colorScheme.error,
+        MaterialTheme.colorScheme.surfaceTint
+    )
+
+    // 为每个匹配对生成一个独特的颜色
+    val pairColors = matchedPairs.mapIndexed { index, pair ->
+        pair to colors[index % colors.size]
+    }.toMap()
+    
     Row(
         modifier = Modifier
             .fillMaxSize()
@@ -107,9 +137,12 @@ private fun GameContent(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(gameState.map { it.first }) { word ->
+                val matchedPair = matchedPairs.find { it.first == word }
                 WordCard(
                     word = word,
                     isSelected = word == selectedWord,
+                    isMatched = matchedPair != null,
+                    matchedColor = matchedPair?.let { pairColors[it] },
                     onClick = { onWordSelected(word) }
                 )
             }
@@ -120,10 +153,13 @@ private fun GameContent(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(gameState.map { it.second }.shuffled()) { meaning ->
+            items(shuffledMeanings) { meaning ->
+                val matchedPair = matchedPairs.find { it.second == meaning }
                 MeaningCard(
                     meaning = meaning,
                     isSelected = meaning == selectedMeaning,
+                    isMatched = matchedPair != null,
+                    matchedColor = matchedPair?.let { pairColors[it] },
                     onClick = { onMeaningSelected(meaning) }
                 )
             }
@@ -135,18 +171,21 @@ private fun GameContent(
 private fun WordCard(
     word: String,
     isSelected: Boolean,
+    isMatched: Boolean,
+    matchedColor: Color? = null,
     onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(enabled = !isMatched, onClick = onClick),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) 
-                MaterialTheme.colorScheme.primaryContainer 
-            else 
-                MaterialTheme.colorScheme.surface
+            containerColor = when {
+                isMatched && matchedColor != null -> matchedColor.copy(alpha = 0.2f)
+                isSelected -> MaterialTheme.colorScheme.primaryContainer
+                else -> MaterialTheme.colorScheme.surface
+            }
         )
     ) {
         Text(
@@ -156,7 +195,11 @@ private fun WordCard(
                 .padding(12.dp)
                 .fillMaxWidth(),
             textAlign = TextAlign.Center,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+            color = when {
+                isMatched && matchedColor != null -> matchedColor
+                else -> MaterialTheme.colorScheme.onSurface
+            },
+            fontWeight = if (isSelected || isMatched) FontWeight.Bold else FontWeight.Normal
         )
     }
 }
@@ -165,18 +208,21 @@ private fun WordCard(
 private fun MeaningCard(
     meaning: String,
     isSelected: Boolean,
+    isMatched: Boolean,
+    matchedColor: Color? = null,
     onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(enabled = !isMatched, onClick = onClick),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) 
-                MaterialTheme.colorScheme.secondaryContainer 
-            else 
-                MaterialTheme.colorScheme.surface
+            containerColor = when {
+                isMatched && matchedColor != null -> matchedColor.copy(alpha = 0.2f)
+                isSelected -> MaterialTheme.colorScheme.secondaryContainer
+                else -> MaterialTheme.colorScheme.surface
+            }
         )
     ) {
         Text(
@@ -186,7 +232,11 @@ private fun MeaningCard(
                 .padding(12.dp)
                 .fillMaxWidth(),
             textAlign = TextAlign.Center,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+            color = when {
+                isMatched && matchedColor != null -> matchedColor
+                else -> MaterialTheme.colorScheme.onSurface
+            },
+            fontWeight = if (isSelected || isMatched) FontWeight.Bold else FontWeight.Normal
         )
     }
 }

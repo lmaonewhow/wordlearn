@@ -28,13 +28,13 @@ class ChallengeViewModel : ViewModel() {
     private val _isGameOver = MutableStateFlow(false)
     val isGameOver: StateFlow<Boolean> = _isGameOver.asStateFlow()
 
-    // 已匹配的单词
-    private val matchedWords = mutableSetOf<String>()
+    // 已匹配的单词对
+    private val _matchedPairs = MutableStateFlow<Set<Pair<String, String>>>(emptySet())
+    val matchedPairs: StateFlow<Set<Pair<String, String>>> = _matchedPairs.asStateFlow()
 
     fun initializeGame(isToday: Boolean) {
         viewModelScope.launch {
             // TODO: 从数据库或词库中获取单词数据
-            // 这里先使用模拟数据
             val wordPairs = if (isToday) {
                 getTodayWords()
             } else {
@@ -50,16 +50,23 @@ class ChallengeViewModel : ViewModel() {
         _selectedWord.value = null
         _selectedMeaning.value = null
         _isGameOver.value = false
-        matchedWords.clear()
+        _matchedPairs.value = emptySet()
     }
 
     fun selectWord(word: String) {
-        if (matchedWords.contains(word)) return
+        // 如果单词已经匹配，则忽略
+        if (_matchedPairs.value.any { it.first == word }) {
+            return
+        }
         _selectedWord.value = word
         checkMatch()
     }
 
     fun selectMeaning(meaning: String) {
+        // 如果释义已经匹配，则忽略
+        if (_matchedPairs.value.any { it.second == meaning }) {
+            return
+        }
         _selectedMeaning.value = meaning
         checkMatch()
     }
@@ -76,14 +83,14 @@ class ChallengeViewModel : ViewModel() {
             if (isMatch) {
                 // 匹配成功
                 _score.value++
-                matchedWords.add(word)
+                _matchedPairs.value = _matchedPairs.value + (word to meaning)
                 
                 // 清除选择
                 _selectedWord.value = null
                 _selectedMeaning.value = null
 
                 // 检查游戏是否结束
-                if (matchedWords.size == _gameState.value.size) {
+                if (_matchedPairs.value.size == _gameState.value.size) {
                     _isGameOver.value = true
                 }
             } else {

@@ -32,8 +32,7 @@ fun WordbookCard(
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = Color(0xFFF9F7FC))
+            .padding(vertical = 4.dp)
     ) {
         Column(
             modifier = Modifier

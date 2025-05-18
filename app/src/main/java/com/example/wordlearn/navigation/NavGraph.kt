@@ -11,12 +11,25 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.example.wordlearn.ui.screens.*
+
+// Screens
+import com.example.wordlearn.ui.screens.SplashScreen
+import com.example.wordlearn.ui.screens.HomeScreen
+import com.example.wordlearn.ui.screens.ToolScreen
+import com.example.wordlearn.ui.screens.UserScreen
+import com.example.wordlearn.ui.screens.ProfileScreen
+import com.example.wordlearn.ui.screens.DetailScreen
 import com.example.wordlearn.ui.screens.learningplan.LearningPlanScreen
 import com.example.wordlearn.ui.screens.learning.LearningScreen
 import com.example.wordlearn.ui.screens.challenge.ChallengeScreen
+import com.example.wordlearn.ui.screens.review.ReviewScreen
+import com.example.wordlearn.ui.screens.WordbookSelectorScreen
+
+// ViewModels
 import com.example.wordlearn.ui.viewmodel.LearningViewModel
 import com.example.wordapp.viewmodel.HomeViewModel
+
+// Models
 import com.example.wordlearn.data.model.BookType
 import com.example.wordlearn.data.model.VocabularyBook
 
@@ -30,6 +43,7 @@ sealed class NavRoute(val route: String) {
         const val Today = "challenge/today"
         const val Yesterday = "challenge/yesterday"
     }
+    object Review : NavRoute("review")
 }
 
 @Composable
@@ -129,6 +143,15 @@ fun NavGraph(navController: NavHostController, innerPadding: PaddingValues) {
             ChallengeScreen(
                 isToday = false,
                 onBackClick = { navController.navigateUp() }
+            )
+        }
+
+        // Review screen
+        composable(NavRoute.Review.route) {
+            val context = LocalContext.current
+            ReviewScreen(
+                navController = navController,
+                context = context
             )
         }
 

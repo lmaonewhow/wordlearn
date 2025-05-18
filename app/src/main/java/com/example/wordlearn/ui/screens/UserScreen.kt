@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.wordlearn.R
+import com.example.wordlearn.ui.theme.ThemeManager
 // 用户数据类
 data class UserProfile(
     val name: String = "学习者",
@@ -58,17 +59,17 @@ fun UserScreen() {
     val sharedPrefs = remember { context.getSharedPreferences("user_settings", Context.MODE_PRIVATE) }
     var userProfile by remember { mutableStateOf(UserProfile()) }
     var showEditDialog by remember { mutableStateOf(false) }
-    // 从 SharedPreferences 读取设置状态
-    var isDarkMode by remember { 
-        mutableStateOf(sharedPrefs.getBoolean("dark_mode", false))
-    }
+    
+    // 使用 ThemeManager 的暗色模式状态
+    val isDarkMode by ThemeManager.isDarkMode
     var isVideoEnabled by remember { 
         mutableStateOf(sharedPrefs.getBoolean("video_enabled", true))
     }
     var isSoundEnabled by remember { 
         mutableStateOf(sharedPrefs.getBoolean("sound_enabled", true))
     }
-    // 播放音效：只在页面进入时播放一次，并且要检查是否启用了音效
+
+    // 播放音效
     LaunchedEffect(Unit) {
         if (isSoundEnabled) {
             val mediaPlayer = MediaPlayer.create(context, R.raw.user)
@@ -78,6 +79,7 @@ fun UserScreen() {
             }
         }
     }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -105,8 +107,8 @@ fun UserScreen() {
             isVideoEnabled = isVideoEnabled,
             isSoundEnabled = isSoundEnabled,
             onDarkModeChange = { newValue ->
-                isDarkMode = newValue
-                sharedPrefs.edit().putBoolean("dark_mode", newValue).apply()
+                // 使用 ThemeManager 切换主题
+                ThemeManager.setDarkMode(context, newValue)
             },
             onVideoEnabledChange = { newValue ->
                 isVideoEnabled = newValue
