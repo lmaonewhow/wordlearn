@@ -22,8 +22,8 @@ class MainActivity : ComponentActivity() {
 
             Scaffold(
                 bottomBar = {
-                    // Only show bottom bar if not on splash screen
-                    if (currentRoute != "splash") {
+                    // Only show bottom bar if not on splash screen and not on learning screen
+                    if (currentRoute != "splash" && currentRoute != "learning") {
                         BottomBar(navController)
                     }
                 }

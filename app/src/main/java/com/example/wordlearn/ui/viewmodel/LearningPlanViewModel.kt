@@ -128,15 +128,15 @@ class LearningPlanViewModel(application: Application) : AndroidViewModel(applica
                 updateReminderDays(existingReminder.id, existingReminder.days + days)
             } else {
                 // 如果不存在，添加新提醒
-                val newReminder = LearningReminder(
-                    id = System.currentTimeMillis().toString(),
-                    time = time,
-                    isEnabled = true,
-                    days = days
-                )
+            val newReminder = LearningReminder(
+                id = System.currentTimeMillis().toString(),
+                time = time,
+                isEnabled = true,
+                days = days
+            )
                 _reminders.value = (_reminders.value + newReminder)
                     .sortedBy { it.time } // 按时间排序
-                saveLearningPlan()
+            saveLearningPlan()
             }
         }
     }

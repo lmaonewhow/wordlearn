@@ -111,17 +111,17 @@ fun DailyGoalCard(viewModel: LearningPlanViewModel) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+            ) {
                     DayOfWeek.values().take(4).forEachIndexed { index, day ->
-                        val isSelected = dailyGoal.activeDays.contains(day)
-                        ElevatedFilterChip(
-                            selected = isSelected,
-                            onClick = { viewModel.toggleActiveDay(day) },
-                            label = { 
-                                Text(dayNames[index])
+                    val isSelected = dailyGoal.activeDays.contains(day)
+                    ElevatedFilterChip(
+                        selected = isSelected,
+                        onClick = { viewModel.toggleActiveDay(day) },
+                        label = { 
+                            Text(dayNames[index])
                             },
                             modifier = Modifier.weight(1f)
-                        )
+                    )
                     }
                 }
                 

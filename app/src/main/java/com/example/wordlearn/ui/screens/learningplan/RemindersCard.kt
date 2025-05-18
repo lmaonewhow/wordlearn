@@ -49,12 +49,12 @@ fun RemindersCard(viewModel: LearningPlanViewModel) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = "学习提醒",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+            ) {
+                Text(
+                    text = "学习提醒",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
             
             // 时间选择卡片
             Card(
@@ -152,10 +152,10 @@ fun RemindersCard(viewModel: LearningPlanViewModel) {
                                 onClick = { 
                                     val newDays = if (isSelected) {
                                         selectedDays - day
-                                    } else {
+            } else {
                                         selectedDays + day
                                     }
-                                    reminders.forEach { reminder ->
+                reminders.forEach { reminder ->
                                         viewModel.updateReminderDays(reminder.id, newDays)
                                     }
                                     if (reminders.isEmpty()) {
@@ -340,18 +340,18 @@ private fun AddReminderDialog(
                         Column(
                             modifier = Modifier.padding(top = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            DayOfWeek.values().forEachIndexed { index, day ->
-                                val isSelected = selectedDays.contains(day)
+                ) {
+                    DayOfWeek.values().forEachIndexed { index, day ->
+                        val isSelected = selectedDays.contains(day)
                                 FilterChip(
-                                    selected = isSelected,
-                                    onClick = { 
-                                        selectedDays = if (isSelected) {
-                                            selectedDays - day
-                                        } else {
-                                            selectedDays + day
-                                        }
-                                    },
+                            selected = isSelected,
+                            onClick = { 
+                                selectedDays = if (isSelected) {
+                                    selectedDays - day
+                                } else {
+                                    selectedDays + day
+                                }
+                            },
                                     label = { Text(dayNames[index]) }
                                 )
                             }
@@ -405,12 +405,12 @@ private fun TimePickerDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // 小时选择
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 小时选择
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
@@ -444,7 +444,7 @@ private fun TimePickerDialog(
                     
                     Text(":", style = MaterialTheme.typography.headlineMedium)
                     
-                    // 分钟选择
+                // 分钟选择
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {

@@ -1,5 +1,4 @@
 package com.example.wordlearn.ui.screens
-
 import android.media.MediaPlayer
 import android.content.Context
 import androidx.compose.foundation.*
@@ -10,7 +9,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Star
@@ -33,7 +31,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.wordlearn.R
-
 // 用户数据类
 data class UserProfile(
     val name: String = "学习者",
@@ -49,22 +46,18 @@ data class UserProfile(
         Achievement("学习先锋", "每日目标达成30次", false)
     )
 )
-
 // 成就数据类
 data class Achievement(
     val title: String,
     val description: String,
     val isUnlocked: Boolean
 )
-
 @Composable
 fun UserScreen() {
     val context = LocalContext.current
     val sharedPrefs = remember { context.getSharedPreferences("user_settings", Context.MODE_PRIVATE) }
-    
     var userProfile by remember { mutableStateOf(UserProfile()) }
     var showEditDialog by remember { mutableStateOf(false) }
-    
     // 从 SharedPreferences 读取设置状态
     var isDarkMode by remember { 
         mutableStateOf(sharedPrefs.getBoolean("dark_mode", false))
@@ -75,7 +68,6 @@ fun UserScreen() {
     var isSoundEnabled by remember { 
         mutableStateOf(sharedPrefs.getBoolean("sound_enabled", true))
     }
-
     // 播放音效：只在页面进入时播放一次，并且要检查是否启用了音效
     LaunchedEffect(Unit) {
         if (isSoundEnabled) {
@@ -86,7 +78,6 @@ fun UserScreen() {
             }
         }
     }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -101,19 +92,13 @@ fun UserScreen() {
             onEditClick = { showEditDialog = true },
             isDarkMode = isDarkMode
         )
-
         Spacer(modifier = Modifier.height(16.dp))
-
         // 学习统计卡片
         LearningStatsCard(userProfile = userProfile, isDarkMode = isDarkMode)
-
         Spacer(modifier = Modifier.height(16.dp))
-
         // 成就展示卡片
         AchievementsCard(achievements = userProfile.achievements, isDarkMode = isDarkMode)
-
         Spacer(modifier = Modifier.height(16.dp))
-
         // 设置卡片
         SettingsCard(
             isDarkMode = isDarkMode,
@@ -146,7 +131,6 @@ fun UserScreen() {
         )
     }
 }
-
 @Composable
 fun UserProfileCard(
     userProfile: UserProfile,
@@ -342,7 +326,6 @@ fun AchievementsCard(
         }
     }
 }
-
 @Composable
 private fun AchievementItem(
     achievement: Achievement,
@@ -388,7 +371,6 @@ private fun AchievementItem(
         }
     }
 }
-
 @Composable
 fun SettingsCard(
     isDarkMode: Boolean,

@@ -84,7 +84,7 @@ fun WordbookSelectorScreen(
                 wordbookList.forEach { name ->
                     ElevatedCard(
                         onClick = {
-                            viewModel.setSelectedBookId(name)
+                            viewModel.selectWordbook(name)
                             viewModel.markFirstLaunchComplete()
                             navController.popBackStack()
                         },

@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -73,8 +74,15 @@ fun WordbookCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("📘 当前词书：《$bookName》", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
-                            Text("$unitLabel ｜ 记忆进度 ${(progress * 100).toInt()}%", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                text = "📘 当前词书：《$bookName》",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                            Text(
+                                text = "$unitLabel ｜ 记忆进度 ${(progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                         // 更换词书按钮
                         TextButton(
@@ -93,19 +101,35 @@ fun WordbookCard(
                         }
                     }
                     
+                    // 进度条
                     LinearProgressIndicator(
-                        progress = { progress.coerceIn(0f, 1f) },
-                        modifier = Modifier.fillMaxWidth().height(6.dp),
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                        color = MaterialTheme.colorScheme.primary
+                        progress = progress,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
+
+                    // 学习统计
                     Row(
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("🆕 新学：$newWords 词", fontSize = 14.sp)
-                        Text("🔁 待复习：$reviewWords 词", fontSize = 14.sp)
+                        Text(
+                            text = "🆕 新学：$newWords 词",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "🔁 待复习：$reviewWords 词",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
                     }
+
+                    // 操作按钮
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -113,7 +137,10 @@ fun WordbookCard(
                         OutlinedButton(
                             onClick = onStudyClick,
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.primary
+                            )
                         ) {
                             Icon(Icons.Default.Star, contentDescription = null)
                             Spacer(Modifier.width(6.dp))
@@ -122,7 +149,14 @@ fun WordbookCard(
                         OutlinedButton(
                             onClick = onReviewClick,
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            enabled = reviewWords > 0,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (reviewWords > 0) 
+                                    MaterialTheme.colorScheme.error 
+                                else 
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            )
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = null)
                             Spacer(Modifier.width(6.dp))

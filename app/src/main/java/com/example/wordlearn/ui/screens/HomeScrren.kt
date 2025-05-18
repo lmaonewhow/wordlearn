@@ -22,6 +22,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.wordapp.viewmodel.HomeViewModel
 import com.example.wordlearn.ui.components.WordbookCard
+import com.example.wordlearn.navigation.NavRoute
 
 @Composable
 fun HomeScreen(navController: NavController, innerPadding: PaddingValues, viewModel: HomeViewModel = viewModel()) {
@@ -99,7 +100,13 @@ fun HomeScreen(navController: NavController, innerPadding: PaddingValues, viewMo
                 newWords = newWords,
                 reviewWords = reviewWords,
                 onSelectBookClick = { navController.navigate("wordbookSelector") },
-                onStudyClick = { navController.navigate("memory") },
+                onStudyClick = { 
+                    if (hasSelectedBook) {
+                        navController.navigate("learning")
+                    } else {
+                        navController.navigate("wordbookSelector")
+                    }
+                },
                 onReviewClick = { navController.navigate("review") }
             )
         }
@@ -119,13 +126,13 @@ fun HomeScreen(navController: NavController, innerPadding: PaddingValues, viewMo
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Button(
-                            onClick = { navController.navigate("challenge/today") },
+                            onClick = { navController.navigate(NavRoute.Challenge.Today) },
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("今日挑战")
                         }
                         OutlinedButton(
-                            onClick = { navController.navigate("challenge/yesterday") },
+                            onClick = { navController.navigate(NavRoute.Challenge.Yesterday) },
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("昨日挑战")
@@ -198,7 +205,7 @@ fun FeatureGridSection(navController: NavController) {
                 title = title,
                 onClick = {
                     when (title) {
-                        "学习计划" -> navController.navigate("learningPlan")
+                        "学习计划" -> navController.navigate(NavRoute.LearningPlan.route)
                         // 其他功能的导航待实现
                     }
                 }
