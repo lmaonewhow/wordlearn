@@ -1,9 +1,10 @@
 package com.example.wordlearn.ui.screens
 
 import android.content.Context
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -11,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -18,7 +20,6 @@ import com.example.wordapp.viewmodel.HomeViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-// 从 assets/m-word 读取 CSV 文件名（无扩展名）
 suspend fun Context.loadWordbookNames(): List<String> = withContext(Dispatchers.IO) {
     assets.list("m-word")
         ?.filter { it.endsWith(".csv") }
@@ -44,45 +45,82 @@ fun WordbookSelectorScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(WindowInsets.statusBars.asPaddingValues())
+            .padding(horizontal = 20.dp, vertical = 20.dp)
     ) {
         Text(
-            "📚 选择词书",
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(bottom = 12.dp)
+            text = "📚 选择词书",
+            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
+            modifier = Modifier
+                .padding(bottom = 22.dp)
+                .align(Alignment.CenterHorizontally)
         )
 
         if (isLoading) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+            Box(
+                modifier = Modifier
+                    .fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
         } else if (wordbookList.isEmpty()) {
-            Text("没有找到任何词书文件", style = MaterialTheme.typography.bodyMedium)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "没有找到任何词书文件",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 wordbookList.forEach { name ->
                     ElevatedCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                viewModel.setSelectedBookId(name)
-                                viewModel.markFirstLaunchComplete()
-                                navController.popBackStack()
-                            },
-                        shape = RoundedCornerShape(16.dp),
+                        onClick = {
+                            viewModel.setSelectedBookId(name)
+                            viewModel.markFirstLaunchComplete()
+                            navController.popBackStack()
+                        },
+                        shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.elevatedCardColors(
-                            containerColor = Color(0xFFF9F7FC)
-                        )
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 22.dp, vertical = 18.dp)
+                                .heightIn(min = 54.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = name,
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "点击开始使用该词书",
-                                style = MaterialTheme.typography.bodySmall
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = name,
+                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "点击开始使用该词书",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ArrowForward,
+                                contentDescription = "选中",
+                                tint = MaterialTheme.colorScheme.primary
                             )
                         }
                     }

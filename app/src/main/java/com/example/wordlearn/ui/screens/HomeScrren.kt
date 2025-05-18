@@ -4,11 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -25,7 +24,7 @@ import com.example.wordapp.viewmodel.HomeViewModel
 import com.example.wordlearn.ui.components.WordbookCard
 
 @Composable
-fun HomeScreen(navController: NavController,innerPadding: PaddingValues, viewModel: HomeViewModel = viewModel()) {
+fun HomeScreen(navController: NavController, innerPadding: PaddingValues, viewModel: HomeViewModel = viewModel()) {
     val username by viewModel.username.collectAsState()
     val remembered by viewModel.rememberedWords.collectAsState()
     val forgotten by viewModel.forgottenWords.collectAsState()
@@ -40,33 +39,57 @@ fun HomeScreen(navController: NavController,innerPadding: PaddingValues, viewMod
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .background(MaterialTheme.colorScheme.background)
+            .padding(innerPadding),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+        contentPadding = PaddingValues(vertical = 16.dp, horizontal = 16.dp)
     ) {
         item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding( WindowInsets.statusBars.asPaddingValues())
-                    .padding(bottom = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+            // 顶部欢迎区
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(4.dp)
             ) {
-                TopFeatureBar(navController = navController,  modifier = Modifier.widthIn(max = 225.dp)) // 控制左边实际宽度)
-
-                Spacer(modifier = Modifier.width(12.dp)) // 可选：分隔左/右区域
-
-                Column(
-                    horizontalAlignment = Alignment.End,
-                    modifier = Modifier.weight(1f)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Hi, $username 👋", style = MaterialTheme.typography.headlineSmall)
-                    Text("记忆 $remembered 词 ｜ 遗忘 $forgotten 词", style = MaterialTheme.typography.bodyMedium)
+                    // 头像与昵称（可后续加头像）
+                    Column(
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "Hi, $username 👋",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "记忆 $remembered 词 ｜ 遗忘 $forgotten 词",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    // 快捷功能按钮
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        HomeTopAction(icon = Icons.Default.Face, label = "排行") {
+                            navController.navigate("排行榜")
+                        }
+                        HomeTopAction(icon = Icons.Default.List, label = "任务") {
+                            navController.navigate("任务")
+                        }
+                    }
                 }
             }
         }
 
         item {
+            // 单词本卡片
             WordbookCard(
                 isFirstLaunch = isFirstLaunch,
                 hasSelectedBook = hasSelectedBook,
@@ -82,85 +105,70 @@ fun HomeScreen(navController: NavController,innerPadding: PaddingValues, viewMod
         }
 
         item {
-            ChallengeCard(navController, "今日挑战")
+            // 挑战区，合并为单卡片
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text("🎲 挑战专区", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text("五词匹配游戏，测测你的记忆力", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(
+                            onClick = { navController.navigate("challenge/today") },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("今日挑战")
+                        }
+                        OutlinedButton(
+                            onClick = { navController.navigate("challenge/yesterday") },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("昨日挑战")
+                        }
+                    }
+                }
+            }
         }
 
         item {
-            ChallengeCard(navController, "昨日挑战")
-        }
-
-        item {
-            Column(
+            // 功能区
+            Text(
+                text = "更多功能",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                elevation = CardDefaults.cardElevation(2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding( 20.dp)
             ) {
-                Text(
-                    text = "更多功能",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Divider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                Spacer(modifier = Modifier.height(12.dp))
                 FeatureGridSection()
             }
-        }
-
-
-    }
-}
-
-@Composable
-fun TopFeatureBar(navController: NavController, modifier: Modifier = Modifier) {
-    val features = listOf(
-        "排行榜" to Icons.Default.Face,
-        "任务" to Icons.Default.List,
-        "挑战" to Icons.Default.Favorite
-    )
-
-    LazyRow(
-        modifier = modifier, // 外部传入宽度控制
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(horizontal = 4.dp)
-    ) {
-        items(features) { (label, icon) ->
-            ElevatedButton(
-                onClick = { navController.navigate(label) },
-                modifier = Modifier.height(36.dp),
-                shape = RoundedCornerShape(16.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp)
-            ) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(label, fontSize = 13.sp)
-            }
+            Spacer(Modifier.height(10.dp))
         }
     }
 }
 
 @Composable
-fun ChallengeCard(navController: NavController, name: String) {
-    ElevatedCard(
-        shape = RoundedCornerShape(20.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 10.dp)
+fun HomeTopAction(icon: ImageVector, label: String, onClick: () -> Unit) {
+    ElevatedButton(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+        modifier = Modifier.height(36.dp),
+        elevation = ButtonDefaults.elevatedButtonElevation(defaultElevation = 2.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("🎲 $name", style = MaterialTheme.typography.titleMedium)
-                Text("五词匹配游戏", style = MaterialTheme.typography.bodySmall)
-            }
-            Button(onClick = { navController.navigate("challenge") }) {
-                Text("开始")
-            }
-        }
+        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(label, fontSize = 13.sp)
     }
 }
 
@@ -172,29 +180,23 @@ fun FeatureGridSection() {
         Icons.Default.Person to "错题本",
         Icons.Default.Info to "学习详情",
         Icons.Default.DateRange to "助记共建",
-        Icons.Default.Build to "暂未开发"
+        Icons.Default.Build to "敬请期待"
     )
-
+    // 栅格布局3列，每行间距12dp，左右留白16dp
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
         modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(max = 3500.dp)
-            .padding(bottom = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .heightIn(max = 400.dp) // 必须明确指定高度
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         userScrollEnabled = false
     ) {
         items(features) { (icon, title) ->
-            FeatureCard(icon = icon, title = title, onClick = { /* TODO */ })
+            FeatureCard(icon = icon, title = title, onClick = { /*TODO*/ })
         }
-        item {
-            Spacer(modifier = Modifier.height(32.dp))
-        }
-
     }
 }
-
 
 @Composable
 fun FeatureCard(
@@ -205,27 +207,25 @@ fun FeatureCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(1.6f)
+            .aspectRatio(1.05f)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        elevation = CardDefaults.cardElevation(4.dp)
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(2.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp),
+                .padding(10.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier
-                    .size(30.dp)
+                    .size(34.dp)
                     .background(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                        shape = RoundedCornerShape(12.dp)
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(10.dp)
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -233,14 +233,15 @@ fun FeatureCard(
                     icon,
                     contentDescription = title,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
             )
         }
     }
