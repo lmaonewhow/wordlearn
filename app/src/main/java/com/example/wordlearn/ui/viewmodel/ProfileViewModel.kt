@@ -65,12 +65,14 @@ class ProfileViewModel : ViewModel() {
             else -> LearningGoal.INTEREST
         }
 
-        val readingInterests = (answers["Q2"] as? List<String>)?.map { interest ->
-            when (interest) {
-                "小说" -> ReadingInterest.NOVEL
-                "科技" -> ReadingInterest.TECH
-                "商业" -> ReadingInterest.BUSINESS
-                else -> ReadingInterest.GAME
+        val readingInterests = answers["Q2"]?.let { value ->
+            (value as? List<*>)?.mapNotNull { interest ->
+                when (interest as? String) {
+                    "小说" -> ReadingInterest.NOVEL
+                    "科技" -> ReadingInterest.TECH
+                    "商业" -> ReadingInterest.BUSINESS
+                    else -> ReadingInterest.GAME
+                }
             }
         } ?: emptyList()
 

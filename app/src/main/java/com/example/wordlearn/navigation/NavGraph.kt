@@ -6,6 +6,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.example.wordlearn.ui.screens.*
+import com.example.wordlearn.ui.screens.learningplan.LearningPlanScreen
 
 @Composable
 fun NavGraph(navController: NavHostController, innerPadding: PaddingValues) {
@@ -20,7 +21,7 @@ fun NavGraph(navController: NavHostController, innerPadding: PaddingValues) {
 
         // Main screens
         composable(BottomNavItem.Home.route) {
-            HomeScreen(navController,innerPadding)
+            HomeScreen(navController, innerPadding)
         }
         composable(BottomNavItem.Tool.route) {
             ToolScreen(
@@ -47,6 +48,13 @@ fun NavGraph(navController: NavHostController, innerPadding: PaddingValues) {
                         popUpTo("profile") { inclusive = true }
                     }
                 }
+            )
+        }
+
+        // Learning plan screen
+        composable("learningPlan") {
+            LearningPlanScreen(
+                onBackClick = { navController.popBackStack() }
             )
         }
 

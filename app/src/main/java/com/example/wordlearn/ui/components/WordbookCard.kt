@@ -66,10 +66,35 @@ fun WordbookCard(
                 }
 
                 else -> {
-                    Text("📘 当前词书：《$bookName》", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
-                    Text("$unitLabel ｜ 记忆进度 ${(progress * 100).toInt()}%", style = MaterialTheme.typography.bodyMedium)
+                    // 当前词书信息行
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("📘 当前词书：《$bookName》", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                            Text("$unitLabel ｜ 记忆进度 ${(progress * 100).toInt()}%", style = MaterialTheme.typography.bodyMedium)
+                        }
+                        // 更换词书按钮
+                        TextButton(
+                            onClick = onSelectBookClick,
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Refresh,
+                                contentDescription = "更换词书",
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("更换")
+                        }
+                    }
+                    
                     LinearProgressIndicator(
-                        progress = progress.coerceIn(0f, 1f),
+                        progress = { progress.coerceIn(0f, 1f) },
                         modifier = Modifier.fillMaxWidth().height(6.dp),
                         trackColor = MaterialTheme.colorScheme.surfaceVariant,
                         color = MaterialTheme.colorScheme.primary
@@ -108,4 +133,4 @@ fun WordbookCard(
             }
         }
     }
-}
+} 

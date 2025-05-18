@@ -331,7 +331,11 @@ fun AchievementsCard(
                 )
                 if (achievement != achievements.last()) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Divider(color = if (isDarkMode) Color.DarkGray else Color.LightGray)
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.surfaceVariant
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
             }
@@ -420,7 +424,11 @@ fun SettingsCard(
             )
 
             Spacer(modifier = Modifier.height(8.dp))
-            Divider(color = if (isDarkMode) Color.DarkGray else Color.LightGray)
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 8.dp),
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.surfaceVariant
+            )
             Spacer(modifier = Modifier.height(8.dp))
 
             // 开场视频设置
@@ -433,7 +441,11 @@ fun SettingsCard(
             )
 
             Spacer(modifier = Modifier.height(8.dp))
-            Divider(color = if (isDarkMode) Color.DarkGray else Color.LightGray)
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 8.dp),
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.surfaceVariant
+            )
             Spacer(modifier = Modifier.height(8.dp))
 
             // 音效设置

@@ -8,8 +8,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -43,7 +43,7 @@ fun ProfileScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onComplete) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -62,13 +62,19 @@ fun ProfileScreen(
         ) {
             // Progress Indicator
             LinearProgressIndicator(
-                progress = (currentQuestionIndex + 1).toFloat() / Questions.all.size,
+                progress = { (currentQuestionIndex + 1).toFloat() / Questions.all.size },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp, vertical = 8.dp)
                     .clip(RoundedCornerShape(6.dp)),
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 8.dp),
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.surfaceVariant
             )
 
             // 问题区域
@@ -116,7 +122,7 @@ fun ProfileScreen(
                         enabled = currentQuestionIndex > 0,
                         shape = RoundedCornerShape(50)
                     ) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                         Spacer(Modifier.width(4.dp))
                         Text("上一题")
                     }
@@ -131,7 +137,11 @@ fun ProfileScreen(
                         Text(if (currentQuestionIndex == Questions.all.size - 1) "完成" else "下一题")
                         if (currentQuestionIndex < Questions.all.size - 1) {
                             Spacer(Modifier.width(4.dp))
-                            Icon(Icons.Default.ArrowForward, contentDescription = null)
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = "下一步",
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
                         }
                     }
                 }

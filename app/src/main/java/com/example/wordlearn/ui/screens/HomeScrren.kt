@@ -150,7 +150,7 @@ fun HomeScreen(navController: NavController, innerPadding: PaddingValues, viewMo
                 modifier = Modifier
                     .fillMaxWidth()
             ) {
-                FeatureGridSection()
+                FeatureGridSection(navController)
             }
             Spacer(Modifier.height(10.dp))
         }
@@ -173,7 +173,7 @@ fun HomeTopAction(icon: ImageVector, label: String, onClick: () -> Unit) {
 }
 
 @Composable
-fun FeatureGridSection() {
+fun FeatureGridSection(navController: NavController) {
     val features = listOf(
         Icons.Default.Star to "学习计划",
         Icons.Default.Favorite to "收藏本",
@@ -193,7 +193,16 @@ fun FeatureGridSection() {
         userScrollEnabled = false
     ) {
         items(features) { (icon, title) ->
-            FeatureCard(icon = icon, title = title, onClick = { /*TODO*/ })
+            FeatureCard(
+                icon = icon,
+                title = title,
+                onClick = {
+                    when (title) {
+                        "学习计划" -> navController.navigate("learningPlan")
+                        // 其他功能的导航待实现
+                    }
+                }
+            )
         }
     }
 }
