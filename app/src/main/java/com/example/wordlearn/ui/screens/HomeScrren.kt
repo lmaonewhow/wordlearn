@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.wordapp.viewmodel.HomeViewModel
+import com.example.wordlearn.ui.viewmodel.HomeViewModel
 import com.example.wordlearn.ui.components.WordbookCard
 import com.example.wordlearn.navigation.NavRoute
 
@@ -36,6 +36,8 @@ fun HomeScreen(navController: NavController, innerPadding: PaddingValues, viewMo
     val bookName by viewModel.selectedBookName.collectAsState()
     val unitLabel by viewModel.currentUnit.collectAsState()
     val progress by viewModel.progress.collectAsState()
+    val totalWords by viewModel.totalWords.collectAsState()
+    val learnedWords by viewModel.learnedWords.collectAsState()
 
     LazyColumn(
         modifier = Modifier
@@ -99,6 +101,8 @@ fun HomeScreen(navController: NavController, innerPadding: PaddingValues, viewMo
                 progress = progress,
                 newWords = newWords,
                 reviewWords = reviewWords,
+                totalWords = totalWords,
+                learnedWords = learnedWords,
                 onSelectBookClick = { navController.navigate("wordbookSelector") },
                 onStudyClick = { 
                     if (hasSelectedBook) {
@@ -206,6 +210,8 @@ fun FeatureGridSection(navController: NavController) {
                 onClick = {
                     when (title) {
                         "学习计划" -> navController.navigate(NavRoute.LearningPlan.route)
+                        "收藏本" -> navController.navigate(NavRoute.Favorites.route)
+                        "错题本" -> navController.navigate(NavRoute.ErrorBook.route)
                         // 其他功能的导航待实现
                     }
                 }

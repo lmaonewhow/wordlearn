@@ -91,15 +91,16 @@ class ReviewViewModel(
                 
                 if (words.isEmpty()) {
                     Log.d(TAG, "没有找到需要复习的单词，请检查：1. 是否已加载词书 2. 单词的 nextReviewDate 是否正确设置")
+                    _message.value = "你目前没有需要复习的单词"
+                    _isReviewComplete.value = true
                 } else {
                     Log.d(TAG, "第一个单词: ${words.first().word}, 状态: ${words.first().status}, 下次复习日期: ${words.first().nextReviewDate}")
-                }
-                
-                reviewWords = words.toMutableList()
-                _totalWords.value = reviewWords.size
-                
-                if (reviewWords.isNotEmpty()) {
-                    Log.d(TAG, "找到需要复习的单词，开始加载第一个单词")
+                    
+                    // 随机打乱单词列表顺序
+                    reviewWords = words.shuffled().toMutableList()
+                    _totalWords.value = reviewWords.size
+                    
+                    Log.d(TAG, "找到需要复习的单词，已随机排序，开始加载第一个单词")
                     loadNextWord()
                 }
                 

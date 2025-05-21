@@ -11,6 +11,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,6 +47,7 @@ import android.net.ConnectivityManager
 import android.os.Handler
 import android.os.Looper
 import android.content.SharedPreferences
+import com.example.wordlearn.App
 
 private const val TAG = "LearningScreen"
 
@@ -52,7 +55,7 @@ private const val TAG = "LearningScreen"
 @Composable
 fun LearningScreen(
     navController: NavController? = null,
-    viewModel: LearningViewModel = viewModel()
+    viewModel: LearningViewModel = viewModel(factory = (LocalContext.current.applicationContext as App).learningViewModelFactory)
 ) {
     Log.d(TAG, "学习界面开始组合")
     
@@ -272,16 +275,47 @@ fun LearningScreen(
     // 处理滑动手势
     val handleSwipe: (Boolean) -> Unit = { isKnown ->
         Log.d(TAG, "处理滑动：${if (isKnown) "认识" else "不认识"}")
-        // 播放音效
-        playSoundEffect(isKnown)
-        viewModel.handleWordChoice(isKnown)
-        scope.launch {
-            // 重置动画
-            offsetX.animateTo(0f, spring())
-            cardRotation.animateTo(0f, spring())
-            cardScale.animateTo(1f, spring())
-            cardAlpha.animateTo(1f, spring())
-            Log.d(TAG, "动画重置完成")
+        
+        try {
+            // 如果不认识，记录错误
+            if (!isKnown) {
+                currentWord?.let { wordCard ->
+                    // 确保有效的ID
+                    if (wordCard.id > 0) {
+                        // 使用协程启动错误记录，确保异步执行
+                        scope.launch {
+                            try {
+                                viewModel.recordError(wordCard.id)
+                                Log.d(TAG, "成功记录错误：单词=${wordCard.word}, ID=${wordCard.id}")
+                                
+                                // 显示确认提示
+                                snackbarHostState.showSnackbar(
+                                    message = "已添加到错题本：${wordCard.word}",
+                                    duration = SnackbarDuration.Short
+                                )
+                            } catch (e: Exception) {
+                                Log.e(TAG, "记录错误失败", e)
+                            }
+                        }
+                    } else {
+                        Log.e(TAG, "无法记录错误：单词ID无效 (${wordCard.id})")
+                    }
+                } ?: Log.e(TAG, "无法记录错误：当前单词为null")
+            }
+            
+            // 播放音效
+            playSoundEffect(isKnown)
+            viewModel.handleWordChoice(isKnown)
+            scope.launch {
+                // 重置动画
+                offsetX.animateTo(0f, spring())
+                cardRotation.animateTo(0f, spring())
+                cardScale.animateTo(1f, spring())
+                cardAlpha.animateTo(1f, spring())
+                Log.d(TAG, "动画重置完成")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理滑动时出错", e)
         }
     }
 
@@ -472,13 +506,46 @@ fun LearningScreen(
                             }
                         }
                         LearningState.Success -> {
+                            // 添加诊断日志
+                            Log.d(TAG, "【诊断】LearningScreen - 状态为Success，进度: $progress，总单词数: $totalWords，当前单词: ${currentWord?.word}")
+                            
                             when {
-                                progress >= totalWords -> {
+                                progress >= totalWords && totalWords > 0 -> {
                                     // 学习完成状态
+                                    Log.d(TAG, "【诊断】LearningScreen - 显示学习完成，进度 >= 总单词数")
                                     LearningCompletionContent(viewModel)
                                 }
+                                currentWord == null && totalWords > 0 -> {
+                                    // 空状态但总单词数不为0，尝试强制刷新
+                                    Log.d(TAG, "【诊断】LearningScreen - 单词为空但总单词数不为0，尝试重新加载")
+                                    // 尝试重新加载当前词书
+                                    val book = currentBook
+                                    if (book != null) {
+                                        LaunchedEffect(Unit) {
+                                            viewModel.loadVocabularyBook(book)
+                                        }
+                                    }
+                                    
+                                    // 显示加载中
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(48.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Text(
+                                            text = "正在准备单词...",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
                                 currentWord == null -> {
-                                    // 空状态
+                                    // 纯空状态
+                                    Log.d(TAG, "【诊断】LearningScreen - 纯空状态，没有单词，总单词数也为0")
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         verticalArrangement = Arrangement.Center,
@@ -493,6 +560,7 @@ fun LearningScreen(
                                 }
                                 else -> {
                                     // 显示单词卡片
+                                    Log.d(TAG, "【诊断】LearningScreen - 显示单词卡片: ${currentWord?.word}")
                                     currentWord?.let { word ->
                                     WordCardContent(
                                             word = word,
@@ -502,7 +570,8 @@ fun LearningScreen(
                                         cardScale = cardScale,
                                             onSwipe = handleSwipe,
                                             playPronunciation = playPronunciation,
-                                            context = context
+                                            context = context,
+                                            viewModel = viewModel
                                     )
                                     }
                                 }
@@ -523,7 +592,10 @@ fun LearningScreen(
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Button(
                                     onClick = { 
-                                        currentBook?.let { viewModel.loadVocabularyBook(it) }
+                                        val book = currentBook
+                                        if (book != null) {
+                                            viewModel.loadVocabularyBook(book)
+                                        }
                                     }
                                 ) {
                                     Text("重试")
@@ -572,7 +644,8 @@ private fun WordCardContent(
     cardScale: Animatable<Float, AnimationVector1D>,
     onSwipe: (Boolean) -> Unit,
     playPronunciation: (String, Boolean) -> Unit,
-    context: Context
+    context: Context,
+    viewModel: LearningViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     val scope = rememberCoroutineScope()
     
@@ -629,72 +702,110 @@ private fun WordCardContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // 单词
-            Text(
-                text = word.word,
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            
-            // 音标和发音按钮
-            Row(
-                modifier = Modifier.padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(32.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // 单词和收藏按钮
+            Box(
+                modifier = Modifier.fillMaxWidth()
             ) {
-                // 英式音标和发音
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                // 收藏按钮 - 放在右上角
+                IconButton(
+                    onClick = {
+                        Log.d(TAG, "点击收藏按钮：${word.word}, id=${word.id}, isFavorite=${word.isFavorite}")
+                        scope.launch {
+                            try {
+                                viewModel.toggleFavorite(word.id, !word.isFavorite)
+                                // 在UI线程上显示确认消息
+                                val action = if (!word.isFavorite) "已收藏" else "已取消收藏"
+                                Toast.makeText(context, "$action: ${word.word}", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Log.e(TAG, "收藏失败: ${e.message}", e)
+                                Toast.makeText(context, "收藏操作失败，请重试", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.TopEnd)
                 ) {
-                    Text(
-                        text = word.ukPhonetic,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Icon(
+                        imageVector = if (word.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = if (word.isFavorite) "取消收藏" else "收藏单词",
+                        tint = if (word.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                     )
-                    IconButton(
-                        onClick = { playPronunciation(word.word, true) },
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                shape = CircleShape
-                            )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.VolumeUp,
-                            contentDescription = "英式发音",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
                 }
                 
-                // 美式音标和发音
+                // 单词文本 - 居中显示
+                Text(
+                    text = word.word,
+                    style = MaterialTheme.typography.headlineMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp, bottom = 8.dp)
+                )
+            }
+            
+            // 音标和发音按钮
+            if (word.ukPhonetic.isNotEmpty() || word.usPhonetic.isNotEmpty()) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center
                 ) {
-                    Text(
-                        text = word.usPhonetic,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    IconButton(
-                        onClick = { playPronunciation(word.word, false) },
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                shape = CircleShape
-                            )
+                    // 英式音标和发音
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.VolumeUp,
-                            contentDescription = "美式发音",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                        Text(
+                            text = word.ukPhonetic,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        IconButton(
+                            onClick = { playPronunciation(word.word, true) },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                    shape = CircleShape
+                                )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VolumeUp,
+                                contentDescription = "英式发音",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.width(16.dp))
+                    
+                    // 美式音标和发音
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = word.usPhonetic,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        IconButton(
+                            onClick = { playPronunciation(word.word, false) },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                    shape = CircleShape
+                                )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VolumeUp,
+                                contentDescription = "美式发音",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }

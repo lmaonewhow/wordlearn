@@ -24,4 +24,22 @@ interface VocabularyDao {
     suspend fun getTodayNewWordsCount(today: LocalDate): Int
 
     suspend fun getTodayReviewWordsCount(today: LocalDate): Int
+    
+    // 获取单个单词
+    suspend fun getWordById(wordId: Long): Word?
+    
+    // 获取单个单词（通过单词文本）
+    suspend fun getWordByText(wordText: String): Word?
+    
+    // 更新单词收藏状态
+    suspend fun updateFavoriteStatus(wordId: Long, isFavorite: Boolean)
+    
+    // 更新单词错误次数
+    suspend fun updateErrorCount(wordId: Long, errorCount: Int)
+    
+    // 获取所有收藏单词
+    suspend fun getFavoriteWords(): List<Word>
+    
+    // 获取所有错题（按错误次数降序排序）
+    suspend fun getErrorWords(): List<Word>
 } 

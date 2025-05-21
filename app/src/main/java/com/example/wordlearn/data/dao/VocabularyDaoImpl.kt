@@ -196,6 +196,9 @@ class VocabularyDaoImpl(
         Log.d(TAG, "获取今天的新单词数量")
         val db = database.readableDatabase
         
+        // 手动清除缓存，确保获取最新数据
+        allWordsCache = null
+        
         val cursor = db.query(
             "words",
             arrayOf("COUNT(*)"),
@@ -221,6 +224,9 @@ class VocabularyDaoImpl(
     override suspend fun getTodayReviewWordsCount(today: LocalDate): Int {
         Log.d(TAG, "获取今天需要复习的单词数量")
         val db = database.readableDatabase
+        
+        // 手动清除缓存，确保获取最新数据
+        allWordsCache = null
         
         val cursor = db.query(
             "words",
@@ -255,7 +261,315 @@ class VocabularyDaoImpl(
             status = WordStatus.valueOf(getString(getColumnIndexOrThrow("status"))),
             lastReviewDate = getString(getColumnIndexOrThrow("lastReviewDate"))?.let { LocalDate.parse(it) },
             nextReviewDate = getString(getColumnIndexOrThrow("nextReviewDate"))?.let { LocalDate.parse(it) },
-            reviewCount = getInt(getColumnIndexOrThrow("reviewCount"))
+            reviewCount = getInt(getColumnIndexOrThrow("reviewCount")),
+            isFavorite = try {
+                getInt(getColumnIndexOrThrow("isFavorite")) == 1
+            } catch (e: Exception) {
+                Log.w(TAG, "isFavorite列不存在，使用默认值false")
+                false
+            },
+            errorCount = try {
+                getInt(getColumnIndexOrThrow("errorCount"))
+            } catch (e: Exception) {
+                Log.w(TAG, "errorCount列不存在，使用默认值0")
+                0
+            }
         )
+    }
+
+    override suspend fun getWordById(wordId: Long): Word? {
+        Log.d(TAG, "根据ID获取单词: $wordId")
+        val db = database.readableDatabase
+        
+        val cursor = db.query(
+            "words",
+            null,
+            "id = ?",
+            arrayOf(wordId.toString()),
+            null,
+            null,
+            null
+        )
+        
+        return cursor.use {
+            if (it.moveToFirst()) {
+                val word = cursor.toWord()
+                Log.d(TAG, "找到单词: ${word.word}")
+                word
+            } else {
+                Log.d(TAG, "未找到ID为 $wordId 的单词")
+                null
+            }
+        }
+    }
+
+    override suspend fun updateFavoriteStatus(wordId: Long, isFavorite: Boolean) {
+        Log.d(TAG, "更新单词收藏状态: wordId=$wordId, isFavorite=$isFavorite")
+        try {
+            val db = database.writableDatabase
+            
+            // 确保事务完整性
+            db.beginTransaction()
+            try {
+                // 首先检查isFavorite列是否存在
+                val cursor = db.rawQuery("PRAGMA table_info(words)", null)
+                val columnExists = cursor.use { c ->
+                    var exists = false
+                    while (c.moveToNext()) {
+                        val columnName = c.getString(c.getColumnIndex("name"))
+                        if (columnName == "isFavorite") {
+                            exists = true
+                            break
+                        }
+                    }
+                    exists
+                }
+                
+                // 如果列不存在，添加列
+                if (!columnExists) {
+                    Log.w(TAG, "isFavorite列不存在，正在添加")
+                    db.execSQL("ALTER TABLE words ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS idx_words_favorite ON words(isFavorite)")
+                }
+                
+                val values = ContentValues().apply {
+                    put("isFavorite", if (isFavorite) 1 else 0)
+                }
+                
+                val updatedRows = db.update(
+                    "words",
+                    values,
+                    "id = ?",
+                    arrayOf(wordId.toString())
+                )
+                
+                if (updatedRows > 0) {
+                    Log.d(TAG, "成功更新单词收藏状态: wordId=$wordId, isFavorite=$isFavorite")
+                } else {
+                    Log.w(TAG, "未找到要更新的单词: wordId=$wordId")
+                }
+                
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
+            }
+            
+            // 状态更新后清除缓存
+            allWordsCache = null
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "更新收藏状态时出错: ${e.message}", e)
+            // 创建索引以修复问题
+            try {
+                val db = database.writableDatabase
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_words_favorite ON words(isFavorite)")
+            } catch (indexEx: Exception) {
+                Log.e(TAG, "创建收藏索引失败", indexEx)
+            }
+        }
+    }
+
+    override suspend fun updateErrorCount(wordId: Long, errorCount: Int) {
+        Log.d(TAG, "更新单词错误次数: wordId=$wordId, errorCount=$errorCount")
+        try {
+            val db = database.writableDatabase
+            
+            // 确保事务完整性
+            db.beginTransaction()
+            try {
+                // 首先检查errorCount列是否存在
+                val cursor = db.rawQuery("PRAGMA table_info(words)", null)
+                val columnExists = cursor.use { c ->
+                    var exists = false
+                    while (c.moveToNext()) {
+                        val columnName = c.getString(c.getColumnIndex("name"))
+                        if (columnName == "errorCount") {
+                            exists = true
+                            break
+                        }
+                    }
+                    exists
+                }
+                
+                // 如果列不存在，添加列
+                if (!columnExists) {
+                    Log.w(TAG, "errorCount列不存在，正在添加")
+                    db.execSQL("ALTER TABLE words ADD COLUMN errorCount INTEGER NOT NULL DEFAULT 0")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS idx_words_error ON words(errorCount)")
+                }
+                
+                val values = ContentValues().apply {
+                    put("errorCount", errorCount)
+                }
+                
+                val updatedRows = db.update(
+                    "words",
+                    values,
+                    "id = ?",
+                    arrayOf(wordId.toString())
+                )
+                
+                if (updatedRows > 0) {
+                    Log.d(TAG, "成功更新单词错误次数: wordId=$wordId, errorCount=$errorCount")
+                } else {
+                    Log.w(TAG, "未找到要更新的单词: wordId=$wordId")
+                }
+                
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
+            }
+            
+            // 状态更新后清除缓存
+            allWordsCache = null
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "更新错误次数时出错: ${e.message}", e)
+            // 创建索引以修复问题
+            try {
+                val db = database.writableDatabase
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_words_error ON words(errorCount)")
+            } catch (indexEx: Exception) {
+                Log.e(TAG, "创建错误索引失败", indexEx)
+            }
+        }
+    }
+
+    override suspend fun getFavoriteWords(): List<Word> {
+        Log.d(TAG, "获取收藏单词列表")
+        val words = mutableListOf<Word>()
+        try {
+            val db = database.writableDatabase
+            
+            // 首先检查isFavorite列是否存在
+            val cursor = db.rawQuery("PRAGMA table_info(words)", null)
+            val columnNames = mutableListOf<String>()
+            cursor.use {
+                while (it.moveToNext()) {
+                    val columnName = it.getString(it.getColumnIndex("name"))
+                    columnNames.add(columnName)
+                }
+            }
+            
+            // 如果列不存在，添加列
+            if (!columnNames.contains("isFavorite")) {
+                Log.w(TAG, "isFavorite列不存在，正在添加")
+                db.execSQL("ALTER TABLE words ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
+                // 创建索引
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_words_favorite ON words(isFavorite)")
+                
+                // 如果刚添加列，直接返回空列表，因为还没有收藏的单词
+                Log.d(TAG, "刚添加isFavorite列，暂无收藏单词")
+                return emptyList()
+            }
+            
+            // 查询收藏单词
+            val queryCursor = db.query(
+                "words",
+                null,
+                "isFavorite = ?",
+                arrayOf("1"),
+                null,
+                null,
+                null
+            )
+            
+            queryCursor.use {
+                while (it.moveToNext()) {
+                    words.add(queryCursor.toWord())
+                }
+            }
+            
+            Log.d(TAG, "找到 ${words.size} 个收藏单词")
+        } catch (e: Exception) {
+            Log.e(TAG, "获取收藏单词列表失败: ${e.message}", e)
+        }
+        return words
+    }
+
+    override suspend fun getErrorWords(): List<Word> {
+        Log.d(TAG, "获取错题列表")
+        val words = mutableListOf<Word>()
+        try {
+            val db = database.writableDatabase
+            
+            // 首先检查errorCount列是否存在
+            val cursor = db.rawQuery("PRAGMA table_info(words)", null)
+            val columnNames = mutableListOf<String>()
+            cursor.use {
+                while (it.moveToNext()) {
+                    val columnName = it.getString(it.getColumnIndex("name"))
+                    columnNames.add(columnName)
+                }
+            }
+            
+            // 如果列不存在，添加列
+            if (!columnNames.contains("errorCount")) {
+                Log.w(TAG, "errorCount列不存在，正在添加")
+                db.execSQL("ALTER TABLE words ADD COLUMN errorCount INTEGER NOT NULL DEFAULT 0")
+                // 创建索引
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_words_error ON words(errorCount)")
+                
+                // 如果刚添加列，直接返回空列表，因为还没有错题
+                Log.d(TAG, "刚添加errorCount列，暂无错题")
+                return emptyList()
+            }
+            
+            // 查询错题
+            val queryCursor = db.query(
+                "words",
+                null,
+                "errorCount > ?",
+                arrayOf("0"),
+                null,
+                null,
+                "errorCount DESC" // 按错误次数降序排序
+            )
+            
+            queryCursor.use {
+                while (it.moveToNext()) {
+                    words.add(queryCursor.toWord())
+                }
+            }
+            
+            Log.d(TAG, "找到 ${words.size} 个错题")
+        } catch (e: Exception) {
+            Log.e(TAG, "获取错题列表失败: ${e.message}", e)
+        }
+        return words
+    }
+
+    override suspend fun getWordByText(wordText: String): Word? {
+        Log.d(TAG, "根据文本获取单词: $wordText")
+        
+        try {
+            val db = database.readableDatabase
+            
+            val cursor = db.query(
+                "words",
+                null,
+                "word = ?",
+                arrayOf(wordText),
+                null,
+                null,
+                null,
+                "1" // 限制只返回一条记录
+            )
+            
+            return cursor.use { c ->
+                if (c.moveToFirst()) {
+                    // 使用扩展函数转换Cursor到Word对象
+                    val word = c.toWord()
+                    Log.d(TAG, "找到单词: ${word.word}, isFavorite=${word.isFavorite}, errorCount=${word.errorCount}")
+                    word
+                } else {
+                    Log.d(TAG, "未找到单词: $wordText")
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "根据文本查询单词失败: $wordText", e)
+            return null
+        }
     }
 } 

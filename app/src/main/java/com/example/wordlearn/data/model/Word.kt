@@ -12,7 +12,9 @@ data class Word(
     val status: WordStatus = WordStatus.NEW,
     val lastReviewDate: LocalDate? = null,
     val nextReviewDate: LocalDate? = null,
-    val reviewCount: Int = 0
+    val reviewCount: Int = 0,
+    val isFavorite: Boolean = false,  // 是否收藏
+    val errorCount: Int = 0           // 错误次数
 )
 
 enum class WordStatus {

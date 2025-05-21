@@ -11,6 +11,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 
 // Screens
 import com.example.wordlearn.ui.screens.SplashScreen
@@ -24,10 +27,12 @@ import com.example.wordlearn.ui.screens.learning.LearningScreen
 import com.example.wordlearn.ui.screens.challenge.ChallengeScreen
 import com.example.wordlearn.ui.screens.review.ReviewScreen
 import com.example.wordlearn.ui.screens.WordbookSelectorScreen
+import com.example.wordlearn.ui.screens.FavoriteWordsScreen
+import com.example.wordlearn.ui.screens.ErrorBookScreen
 
 // ViewModels
 import com.example.wordlearn.ui.viewmodel.LearningViewModel
-import com.example.wordapp.viewmodel.HomeViewModel
+import com.example.wordlearn.ui.viewmodel.HomeViewModel
 
 // Models
 import com.example.wordlearn.data.model.BookType
@@ -44,6 +49,8 @@ sealed class NavRoute(val route: String) {
         const val Yesterday = "challenge/yesterday"
     }
     object Review : NavRoute("review")
+    object Favorites : NavRoute("favorites")
+    object ErrorBook : NavRoute("errorbook")
 }
 
 @Composable
@@ -81,6 +88,7 @@ fun NavGraph(navController: NavHostController, innerPadding: PaddingValues) {
             
             // 初始化 ViewModel
             LaunchedEffect(Unit) {
+                Log.d("NavGraph", "【诊断】初始化LearningViewModel")
                 viewModel.initialize(context)
             }
             
@@ -88,19 +96,38 @@ fun NavGraph(navController: NavHostController, innerPadding: PaddingValues) {
             LaunchedEffect(selectedBookName.value) {
                 val bookName = selectedBookName.value
                 if (hasSelectedBook.value && bookName.isNotEmpty()) {
-                    Log.d("NavGraph", "正在加载词汇书：$bookName")
+                    Log.d("NavGraph", "【诊断】正在加载词汇书：$bookName")
                     // 从 repository 获取词汇书
                     val availableBooks = viewModel.getAvailableBooks()
-                    val book = availableBooks.find { it.name == bookName }
+                    
+                    Log.d("NavGraph", "【诊断】可用词汇书数量: ${availableBooks.size}")
+                    Log.d("NavGraph", "【诊断】可用词汇书列表: ${availableBooks.joinToString(", ") { it.name }}")
+                    
+                    // 先尝试精确匹配
+                    var book = availableBooks.find { it.name == bookName }
+                    
+                    // 如果精确匹配没找到，尝试部分匹配
+                    if (book == null && availableBooks.isNotEmpty()) {
+                        Log.d("NavGraph", "【诊断】未找到精确匹配词汇书，尝试部分匹配")
+                        book = availableBooks.find { it.name.contains(bookName, ignoreCase = true) 
+                                               || bookName.contains(it.name, ignoreCase = true) }
+                    }
                     
                     if (book != null) {
-                        Log.d("NavGraph", "找到词汇书：${book.name}")
-                        viewModel.loadVocabularyBook(book)
+                        Log.d("NavGraph", "【诊断】找到词汇书：${book.name}, 路径: ${book.filePath}")
+                        
+                        // 强制检查当前单词是否为null，如果是，确保加载词汇书
+                        if (viewModel.currentWord.value == null) {
+                            Log.d("NavGraph", "【诊断】当前单词为null，重新加载词汇书")
+                            viewModel.loadVocabularyBook(book)
+                        } else {
+                            Log.d("NavGraph", "【诊断】当前单词不为null: ${viewModel.currentWord.value?.word}")
+                        }
                     } else {
-                        Log.e("NavGraph", "未找到词汇书：$bookName")
+                        Log.e("NavGraph", "【诊断】未找到词汇书：$bookName")
                     }
                 } else {
-                    Log.d("NavGraph", "没有选中的词汇书或词汇书名为空")
+                    Log.d("NavGraph", "【诊断】没有选中的词汇书或词汇书名为空")
                 }
             }
             
@@ -152,6 +179,20 @@ fun NavGraph(navController: NavHostController, innerPadding: PaddingValues) {
             ReviewScreen(
                 navController = navController,
                 context = context
+            )
+        }
+
+        // 收藏单词列表
+        composable(NavRoute.Favorites.route) {
+            FavoriteWordsScreen(
+                onBackClick = { navController.navigateUp() }
+            )
+        }
+
+        // 错题本
+        composable(NavRoute.ErrorBook.route) {
+            ErrorBookScreen(
+                onBackClick = { navController.navigateUp() }
             )
         }
 
