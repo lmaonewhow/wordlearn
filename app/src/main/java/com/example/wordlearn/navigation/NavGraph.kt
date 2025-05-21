@@ -1,6 +1,8 @@
 package com.example.wordlearn.navigation
 
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,6 +55,7 @@ sealed class NavRoute(val route: String) {
     object ErrorBook : NavRoute("errorbook")
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun NavGraph(navController: NavHostController, innerPadding: PaddingValues) {
     NavHost(

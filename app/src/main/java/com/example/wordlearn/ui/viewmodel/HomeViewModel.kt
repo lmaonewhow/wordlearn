@@ -2,7 +2,9 @@
 package com.example.wordlearn.ui.viewmodel
 import android.app.Application
 import android.content.Context
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,6 +16,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 
+@RequiresApi(Build.VERSION_CODES.O)
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val context = application.applicationContext
@@ -118,6 +121,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun loadRealWordCounts() {
         viewModelScope.launch {
             try {
@@ -142,6 +146,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _isTaskCompleted.value = true
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     fun loadFromServer() {
         // 加载真实数据
         loadRealWordCounts()
@@ -161,6 +166,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // 强制立即刷新数据的方法，供其他组件调用
+    @RequiresApi(Build.VERSION_CODES.O)
     fun forceRefreshNow() {
         viewModelScope.launch {
             try {
