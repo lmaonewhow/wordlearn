@@ -1,7 +1,9 @@
 package com.example.wordlearn.data.repository
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import com.example.wordlearn.App
 import com.example.wordlearn.data.dao.VocabularyDao
 import com.example.wordlearn.data.model.BookType
@@ -51,6 +53,7 @@ class VocabularyRepository(
     }
 
     // 从CSV文件读取单词
+    @RequiresApi(Build.VERSION_CODES.O)
     suspend fun loadWordsFromCsv(filePath: String): List<Word> {
         Log.d(TAG, "开始从CSV文件加载单词: $filePath")
         return try {
@@ -104,6 +107,7 @@ class VocabularyRepository(
     }
 
     // 从TXT文件读取单词
+    @RequiresApi(Build.VERSION_CODES.O)
     suspend fun loadWordsFromTxt(filePath: String): List<Word> {
         return try {
             val inputStream = context.assets.open(filePath)
@@ -182,6 +186,7 @@ class VocabularyRepository(
     /**
      * 获取需要复习的单词列表
      */
+    @RequiresApi(Build.VERSION_CODES.O)
     suspend fun getWordsForReview(limit: Int): List<Word> {
         Log.d(TAG, "获取需要复习的单词，限制数量: $limit")
         val today = LocalDate.now()
@@ -239,6 +244,7 @@ class VocabularyRepository(
     /**
      * 获取今天需要学习的新单词数量
      */
+    @RequiresApi(Build.VERSION_CODES.O)
     suspend fun getTodayNewWordsCount(): Int {
         return vocabularyDao.getTodayNewWordsCount(LocalDate.now())
     }
@@ -246,6 +252,7 @@ class VocabularyRepository(
     /**
      * 获取今天需要复习的单词数量
      */
+    @RequiresApi(Build.VERSION_CODES.O)
     suspend fun getTodayReviewWordsCount(): Int {
         val count = vocabularyDao.getTodayReviewWordsCount(LocalDate.now())
         Log.d(TAG, "今天需要复习的单词数量: $count")
@@ -262,6 +269,7 @@ class VocabularyRepository(
      * - 第5次复习：15天后
      * - 第6次及以上：30天后
      */
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun calculateNextReviewDate(today: LocalDate, currentReviewCount: Int): LocalDate {
         return when (currentReviewCount) {
             0 -> today.plusDays(1)
@@ -277,6 +285,7 @@ class VocabularyRepository(
      * 更新学习统计数据（用于刷新首页显示）
      * 这个方法会触发数据更新，确保首页显示的待学习和待复习数字是最新的
      */
+    @RequiresApi(Build.VERSION_CODES.O)
     fun updateLearningCounts() {
         // 使用自定义协程作用域而不是viewModelScope
         CoroutineScope(Dispatchers.IO).launch {
