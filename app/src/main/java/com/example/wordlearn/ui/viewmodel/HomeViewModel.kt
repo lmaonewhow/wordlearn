@@ -110,14 +110,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         (application as App).homeViewModel = this
         
         // 初始化时加载真实数据
-        loadRealWordCounts()
+//        loadRealWordCounts()
         
         // 每当UI可见时刷新数据
         viewModelScope.launch {
-            while(true) {
-                loadRealWordCounts()
-                delay(5000) // 每5秒更新一次，提高刷新频率
-            }
+//            while(true) {
+//                loadRealWordCounts()
+//                delay(5000) // 每5秒更新一次，提高刷新频率
+//            }
         }
     }
 

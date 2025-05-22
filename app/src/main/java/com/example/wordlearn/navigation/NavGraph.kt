@@ -40,9 +40,12 @@ import com.example.wordlearn.ui.viewmodel.HomeViewModel
 import com.example.wordlearn.data.model.BookType
 import com.example.wordlearn.data.model.VocabularyBook
 
-// 导航路由
+/*
+*
+* 导航路由配置
+* */
 sealed class NavRoute(val route: String) {
-    object Home : NavRoute("home")
+    object Detail :NavRoute("detail/{word}")
     object Learning : NavRoute("learning")
     object LearningPlan : NavRoute("learning_plan")
     object Challenge : NavRoute("challenge") {
@@ -53,6 +56,7 @@ sealed class NavRoute(val route: String) {
     object Review : NavRoute("review")
     object Favorites : NavRoute("favorites")
     object ErrorBook : NavRoute("errorbook")
+    object  WordbookSelector :NavRoute("wordbookSelector")
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -82,7 +86,7 @@ fun NavGraph(navController: NavHostController, innerPadding: PaddingValues) {
         }
 
         // 学习页面
-        composable("learning") {
+        composable(NavRoute.Learning.route) {
             val viewModel: LearningViewModel = viewModel()
             val homeViewModel: HomeViewModel = viewModel()
             val selectedBookName = homeViewModel.selectedBookName.collectAsStateWithLifecycle()
@@ -138,19 +142,33 @@ fun NavGraph(navController: NavHostController, innerPadding: PaddingValues) {
         }
 
         // Wordbook selector screen
-        composable("wordbookSelector") {
+        composable(NavRoute.WordbookSelector.route) {
             WordbookSelectorScreen(navController)
         }
 
         // Profile configuration screen
-        composable("profile") {
+        composable(BottomNavItem.Profile.route) {
+            Log.d("NavGraph", "进入ProfileScreen页面")
             ProfileScreen(
                 onComplete = {
                     // 完成后返回工具页面
-                    navController.navigate(BottomNavItem.Tool.route) {
-                        // 清除回退栈中的 profile 页面
-                        popUpTo("profile") { inclusive = true }
+                    Log.d("NavGraph", "ProfileScreen完成，准备导航回ToolScreen")
+                    
+                    // 先清除当前回退栈并导航到首页，然后再导航到工具页面
+                    // 这样可以保证工具页面有一个干净的回退栈
+                    navController.navigate(BottomNavItem.Home.route) {
+                        popUpTo(navController.graph.startDestinationId) {
+                            inclusive = true  // 移除起始页面
+                        }
                     }
+                    
+                    // 确保首页导航完成后再导航到工具页面
+                    navController.navigate(BottomNavItem.Tool.route) {
+                        launchSingleTop = true  // 避免多次创建相同页面
+                        Log.d("NavGraph", "导航到工具页面: ${BottomNavItem.Tool.route}")
+                    }
+                    
+                    Log.d("NavGraph", "导航完成，当前路由栈: ${navController.currentBackStackEntry?.destination?.route}")
                 }
             )
         }
@@ -200,7 +218,7 @@ fun NavGraph(navController: NavHostController, innerPadding: PaddingValues) {
         }
 
         // Other screens
-        composable("detail/{word}") { backStackEntry ->
+        composable(NavRoute.Detail.route) { backStackEntry ->
             DetailScreen(backStackEntry.arguments?.getString("word") ?: "")
         }
     }

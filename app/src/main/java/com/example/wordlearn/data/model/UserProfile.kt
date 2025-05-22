@@ -2,7 +2,9 @@ package com.example.wordlearn.data.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
+@Serializable
 @Entity(tableName = "user_profiles")
 data class UserProfile(
     @PrimaryKey(autoGenerate = true)
@@ -15,23 +17,28 @@ data class UserProfile(
     val lastUpdated: Long = System.currentTimeMillis()
 )
 
+@Serializable
 enum class LearningGoal {
     EXAM, ABROAD, WORK, INTEREST
 }
 
+@Serializable
 enum class ReadingInterest {
     NOVEL, TECH, BUSINESS, GAME
 }
 
+@Serializable
 enum class ProficiencyLevel {
     BEGINNER, INTERMEDIATE, ADVANCED
 }
 
+@Serializable
 enum class LearningStyle {
     PRACTICE, AI_EXPLAIN, CONVERSATION
 }
 
 // 词典配置
+@Serializable
 data class DictionaryConfig(
     val id: Long = 0,
     val name: String,
@@ -41,6 +48,7 @@ data class DictionaryConfig(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+@Serializable
 enum class DictionaryType {
     EXAM_PREP, AI_GENERATED, CUSTOM
 } 

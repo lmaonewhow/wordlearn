@@ -64,7 +64,7 @@ class App : Application() {
         }
         
         // 预加载最近使用的词书
-        preloadRecentWordbook()
+//        preloadRecentWordbook()
     }
     
     // 预加载最近使用的词书

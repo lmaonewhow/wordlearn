@@ -5,6 +5,18 @@ import kotlinx.serialization.Serializer
 import java.time.DayOfWeek
 import java.time.LocalTime
 
+
+// 词典配置
+@Serializable
+data class DictionaryConfig(
+    val learningGoal: String, // 学习目标
+    val readingInterests: List<String>, // 阅读兴趣
+    val proficiencyLevel: String, // 等级
+    val customWords: List<String>, // 自己的word
+    val learningStyle: String // 学习的风格
+)
+
+
 // 学习计划数据类
 @Serializable
 data class LearningPlan(

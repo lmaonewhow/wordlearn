@@ -1,5 +1,6 @@
 package com.example.wordlearn.ui.screens
 
+import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -15,12 +16,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.wordlearn.data.model.Questions
+import com.example.wordlearn.data.store.settingsDataStore
 import com.example.wordlearn.ui.components.QuestionCard
 import com.example.wordlearn.ui.viewmodel.ProfileViewModel
+import kotlinx.coroutines.flow.first
+
+private const val TAG = "ProfileScreen"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
@@ -30,6 +37,35 @@ fun ProfileScreen(
     val currentQuestionIndex by viewModel.currentQuestionIndex.collectAsState()
     val isComplete by viewModel.isComplete.collectAsState()
     val answers by viewModel.answers.collectAsState()
+    val context = LocalContext.current
+    
+    // 当问卷完成时，保存用户配置并跳转
+    LaunchedEffect(isComplete) {
+        if (isComplete && viewModel.currentProfile != null) {
+            Log.d(TAG, "问卷完成，开始保存用户配置")
+            // 保存用户配置
+            viewModel.saveUserProfile(context, viewModel.currentProfile!!)
+            
+            // 验证保存是否成功
+            try {
+                val preferences = context.settingsDataStore.data.first()
+                val isProfileCompleted = preferences[com.example.wordlearn.data.store.AppSettingsKeys.IS_PROFILE_COMPLETED] ?: false
+                val profileJson = preferences[com.example.wordlearn.data.store.AppSettingsKeys.PROFILE_JSON]
+                
+                Log.d(TAG, "验证保存结果 - 完成状态: $isProfileCompleted, 配置JSON存在: ${profileJson != null}")
+                
+                if (isProfileCompleted) {
+                    Log.d(TAG, "保存成功，准备跳转")
+                    // 跳转到助手页面
+                    onComplete()
+                } else {
+                    Log.e(TAG, "保存失败，完成状态为false")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "验证保存结果时发生异常", e)
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -42,7 +78,15 @@ fun ProfileScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onComplete) {
+                    // 修改返回按钮的处理逻辑，只有当问卷已完成时才直接返回
+                    IconButton(onClick = { 
+                        if (isComplete && viewModel.currentProfile != null) {
+                            onComplete()
+                        } else {
+                            // 如果未完成，提示用户
+                            viewModel.showIncompleteWarning = true
+                        }
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
@@ -167,6 +211,30 @@ fun ProfileScreen(
                         onClick = onComplete,
                         shape = RoundedCornerShape(50)
                     ) { Text("开始学习") }
+                }
+            )
+        }
+        
+        // 未完成提示弹窗
+        if (viewModel.showIncompleteWarning) {
+            AlertDialog(
+                onDismissRequest = { viewModel.showIncompleteWarning = false },
+                title = { Text("提示") },
+                text = { Text("请完成所有问题后再继续。您的个性化词典配置还未完成。") },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.showIncompleteWarning = false },
+                        shape = RoundedCornerShape(50)
+                    ) { Text("继续完成") }
+                },
+                dismissButton = {
+                    OutlinedButton(
+                        onClick = { 
+                            viewModel.showIncompleteWarning = false
+                            onComplete() 
+                        },
+                        shape = RoundedCornerShape(50)
+                    ) { Text("仍然离开") }
                 }
             )
         }

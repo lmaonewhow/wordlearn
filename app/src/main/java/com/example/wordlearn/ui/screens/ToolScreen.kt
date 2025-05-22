@@ -1,5 +1,6 @@
 package com.example.wordlearn.ui.screens
 
+import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,26 +22,73 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.wordlearn.navigation.BottomNavItem
 import com.example.wordlearn.ui.viewmodel.ChatViewModel
+import com.example.wordlearn.ui.viewmodel.ToolViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private const val TAG = "ToolScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ToolScreen(
     innerPadding: PaddingValues,
     navController: NavController,
-    viewModel: ChatViewModel = viewModel()
+    viewModel: ChatViewModel = viewModel(),
+    toolViewModel: ToolViewModel = viewModel()
 ) {
     var inputText by remember { mutableStateOf("") }
     val coroutine = rememberCoroutineScope()
     val kb = LocalSoftwareKeyboardController.current
     val isLoading by viewModel.isLoading.collectAsState()
     val currentResponse by viewModel.currentResponse.collectAsState()
+    val context = LocalContext.current
+    
+    // 状态收集
+    val isProfileCompleted by toolViewModel.isProfileCompleted.collectAsState()
+    
+    // 使用一个状态跟踪配置检查是否已完成
+    var configCheckDone by remember { mutableStateOf(false) }
+    
+    // 检查用户是否已完成配置
+    LaunchedEffect(key1 = Unit) {
+        Log.d(TAG, "启动ToolScreen，开始检查用户配置")
+        toolViewModel.checkProfileCompletion(context)
+        // 给一点时间让状态流更新
+        delay(300)
+        configCheckDone = true
+    }
+    
+    // 如果未完成配置，导航到配置页面，但仅当检查完成后才执行
+    LaunchedEffect(configCheckDone, isProfileCompleted) {
+        Log.d(TAG, "配置检查完成: $configCheckDone, 配置状态: $isProfileCompleted")
+        
+        if (configCheckDone && !isProfileCompleted) {
+            Log.d(TAG, "用户未完成配置，准备导航到配置页面")
+            
+            // 移动到协程内，确保在主线程上执行
+            val currentRoute = navController.currentBackStackEntry?.destination?.route
+            Log.d(TAG, "当前路由: $currentRoute")
+            
+            // 防止在配置页面重复导航
+            if (currentRoute != BottomNavItem.Profile.route) {
+                Log.d(TAG, "执行导航到配置页面: ${BottomNavItem.Profile.route}")
+                navController.navigate(BottomNavItem.Profile.route) {
+                    // 保存当前导航状态，设置为通过popUpTo实现，等配置完成后仍能返回到原页面
+                    popUpTo(BottomNavItem.Tool.route) { inclusive = true }
+                }
+            }
+        } else if (configCheckDone && isProfileCompleted) {
+            Log.d(TAG, "用户已完成配置，不需要导航")
+        }
+    }
 
     // 渐变背景
     Box(
