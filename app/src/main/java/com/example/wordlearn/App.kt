@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.example.wordlearn.data.AppDatabase
+import com.example.wordlearn.data.dao.VocabularyDao
 import com.example.wordlearn.data.model.VocabularyBook
 import com.example.wordlearn.data.repository.VocabularyRepository
 import com.example.wordlearn.ui.viewmodel.HomeViewModel
@@ -20,7 +21,7 @@ private const val TAG = "WordLearnApp"
 
 class App : Application() {
     // 使用 lazy 延迟初始化
-    private val database: AppDatabase by lazy { AppDatabase.getDatabase(this) }
+    val database: AppDatabase by lazy { AppDatabase.getDatabase(this) }
     lateinit var vocabularyRepository: VocabularyRepository
         private set
     
@@ -44,6 +45,11 @@ class App : Application() {
             learningViewModel?.initialize(this)
         }
         return learningViewModel as LearningViewModel
+    }
+    
+    // 公共方法来获取 VocabularyDao 实例
+    fun getAppVocabularyDao(): VocabularyDao {
+        return database.vocabularyDao()
     }
     
     override fun onCreate() {

@@ -36,7 +36,8 @@ class AppDatabase private constructor(context: Context) :
                 nextReviewDate TEXT,
                 reviewCount INTEGER NOT NULL DEFAULT 0,
                 isFavorite INTEGER NOT NULL DEFAULT 0,
-                errorCount INTEGER NOT NULL DEFAULT 0
+                errorCount INTEGER NOT NULL DEFAULT 0,
+                lastModified INTEGER NOT NULL DEFAULT 0
             )
         """)
         
@@ -54,6 +55,7 @@ class AppDatabase private constructor(context: Context) :
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_words_status_next_review ON words(status, nextReviewDate)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_words_favorite ON words(isFavorite)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_words_error ON words(errorCount)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_words_last_modified ON words(lastModified)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {

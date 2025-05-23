@@ -24,11 +24,9 @@ class VocabularyDaoImpl(
         // 检查缓存是否有效
         val now = System.currentTimeMillis()
         if (allWordsCache != null && (now - lastCacheTime) < CACHE_DURATION) {
-            Log.d(TAG, "使用缓存的单词列表")
             return allWordsCache!!
         }
 
-        Log.d(TAG, "从数据库获取所有单词")
         val words = mutableListOf<Word>()
         val db = database.readableDatabase
         
@@ -57,7 +55,6 @@ class VocabularyDaoImpl(
     }
 
     override suspend fun insertWords(words: List<Word>) {
-        Log.d(TAG, "开始批量插入 ${words.size} 个单词到数据库")
         val db = database.writableDatabase
         var successCount = 0
         
@@ -84,7 +81,7 @@ class VocabularyDaoImpl(
             }
             
             db.setTransactionSuccessful()
-            Log.d(TAG, "成功插入 $successCount 个单词")
+            Log.i(TAG, "成功插入 $successCount 个单词")
             
             // 清除缓存，强制下次重新加载
             allWordsCache = null
@@ -278,7 +275,6 @@ class VocabularyDaoImpl(
     }
 
     override suspend fun getWordById(wordId: Long): Word? {
-        Log.d(TAG, "根据ID获取单词: $wordId")
         val db = database.readableDatabase
         
         val cursor = db.query(
@@ -293,11 +289,8 @@ class VocabularyDaoImpl(
         
         return cursor.use {
             if (it.moveToFirst()) {
-                val word = cursor.toWord()
-                Log.d(TAG, "找到单词: ${word.word}")
-                word
+                cursor.toWord()
             } else {
-                Log.d(TAG, "未找到ID为 $wordId 的单词")
                 null
             }
         }
@@ -540,8 +533,6 @@ class VocabularyDaoImpl(
     }
 
     override suspend fun getWordByText(wordText: String): Word? {
-        Log.d(TAG, "根据文本获取单词: $wordText")
-        
         try {
             val db = database.readableDatabase
             
@@ -558,18 +549,138 @@ class VocabularyDaoImpl(
             
             return cursor.use { c ->
                 if (c.moveToFirst()) {
-                    // 使用扩展函数转换Cursor到Word对象
-                    val word = c.toWord()
-                    Log.d(TAG, "找到单词: ${word.word}, isFavorite=${word.isFavorite}, errorCount=${word.errorCount}")
-                    word
+                    c.toWord()
                 } else {
-                    Log.d(TAG, "未找到单词: $wordText")
                     null
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "根据文本查询单词失败: $wordText", e)
             return null
+        }
+    }
+
+    override suspend fun resetAllWordsStatus() {
+        try {
+            val db = database.writableDatabase
+            
+            db.beginTransaction()
+            try {
+                // 更新所有非KNOWN状态的单词
+                val values = ContentValues().apply {
+                    put("status", WordStatus.NEW.name)
+                    putNull("lastReviewDate")
+                    putNull("nextReviewDate")
+                    put("reviewCount", 0)
+                }
+                
+                val updatedRows = db.update(
+                    "words",
+                    values,
+                    "status != ?",
+                    arrayOf(WordStatus.KNOWN.name)
+                )
+                
+                Log.i(TAG, "已重置 $updatedRows 个单词的学习状态")
+                
+                db.setTransactionSuccessful()
+                
+                // 清除缓存
+                allWordsCache = null
+                
+            } finally {
+                db.endTransaction()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "重置单词学习状态时出错: ${e.message}", e)
+        }
+    }
+
+    override suspend fun clearLearningProgress() {
+        try {
+            val db = database.writableDatabase
+            
+            db.beginTransaction()
+            try {
+                // 重置所有非KNOWN状态单词的学习进度
+                val values = ContentValues().apply {
+                    put("status", WordStatus.NEW.name)
+                    putNull("lastReviewDate")
+                    putNull("nextReviewDate")
+                    put("reviewCount", 0)
+                }
+                
+                val updatedRows = db.update(
+                    "words",
+                    values,
+                    "status != ?",
+                    arrayOf(WordStatus.KNOWN.name)
+                )
+                
+                Log.i(TAG, "已清理 $updatedRows 个单词的学习进度")
+                
+                db.setTransactionSuccessful()
+                
+                // 清除缓存
+                allWordsCache = null
+                
+            } finally {
+                db.endTransaction()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "清理学习进度时出错: ${e.message}", e)
+        }
+    }
+
+    override suspend fun updateLastModifiedTime(timestamp: Long) {
+        try {
+            val db = database.writableDatabase
+            
+            db.beginTransaction()
+            try {
+                // 检查lastModified列是否存在
+                val cursor = db.rawQuery("PRAGMA table_info(words)", null)
+                val columnExists = cursor.use { c ->
+                    var exists = false
+                    while (c.moveToNext()) {
+                        val columnName = c.getString(c.getColumnIndex("name"))
+                        if (columnName == "lastModified") {
+                            exists = true
+                            break
+                        }
+                    }
+                    exists
+                }
+                
+                // 如果列不存在，添加列
+                if (!columnExists) {
+                    Log.w(TAG, "lastModified列不存在，正在添加")
+                    db.execSQL("ALTER TABLE words ADD COLUMN lastModified INTEGER NOT NULL DEFAULT 0")
+                }
+                
+                val values = ContentValues().apply {
+                    put("lastModified", timestamp)
+                }
+                
+                val updatedRows = db.update(
+                    "words",
+                    values,
+                    null,  // 更新所有记录
+                    null
+                )
+                
+                Log.i(TAG, "已更新 $updatedRows 个单词的最后修改时间")
+                
+                db.setTransactionSuccessful()
+                
+                // 清除缓存
+                allWordsCache = null
+                
+            } finally {
+                db.endTransaction()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新最后修改时间时出错: ${e.message}", e)
         }
     }
 } 

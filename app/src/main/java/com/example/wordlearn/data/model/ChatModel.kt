@@ -2,38 +2,44 @@ package com.example.wordlearn.data.model
 
 data class ChatRequest(
     val model: String = "qwen-turbo",
-    val input: ChatInput,
+    val messages: List<ChatMessage> = emptyList(),
     val parameters: ChatParameters = ChatParameters()
 )
 
-data class ChatInput(
-    val prompt: String
+data class ChatMessage(
+    val role: String,
+    val content: String,
+    val isUser: Boolean = false,
+    val timestamp: Long = System.currentTimeMillis()
 )
 
 data class ChatParameters(
-    val temperature: Double = 0.8
+    val temperature: Double = 0.8,
+    val top_p: Double = 0.8,
+    val max_tokens: Int = 1500
 )
 
 data class ChatResponse(
-    val output: ChatOutput,
-    val usage: ChatUsage,
-    val request_id: String
+    val id: String,
+    val obj: String,
+    val created: Long,
+    val choices: List<Choice>,
+    val usage: ChatUsage
 )
 
-data class ChatOutput(
-    val text: String,
+data class Choice(
+    val index: Int,
+    val message: AssistantMessage,
     val finish_reason: String
 )
 
-data class ChatUsage(
-    val input_tokens: Int,
-    val output_tokens: Int,
-    val total_tokens: Int
+data class AssistantMessage(
+    val role: String,
+    val content: String
 )
 
-// 聊天消息模型
-data class ChatMessage(
-    val content: String,
-    val isUser: Boolean,
-    val timestamp: Long = System.currentTimeMillis()
+data class ChatUsage(
+    val prompt_tokens: Int,
+    val completion_tokens: Int,
+    val total_tokens: Int
 ) 

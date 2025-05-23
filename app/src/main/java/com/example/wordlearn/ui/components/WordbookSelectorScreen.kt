@@ -17,16 +17,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.wordlearn.App
+import com.example.wordlearn.data.model.VocabularyBook
+import com.example.wordlearn.data.repository.VocabularyRepository
 import com.example.wordlearn.ui.viewmodel.HomeViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-
-suspend fun Context.loadWordbookNames(): List<String> = withContext(Dispatchers.IO) {
-    assets.list("m-word")
-        ?.filter { it.endsWith(".csv") }
-        ?.map { it.removeSuffix(".csv") }
-        ?: emptyList()
-}
 
 @Composable
 fun WordbookSelectorScreen(
@@ -34,12 +28,13 @@ fun WordbookSelectorScreen(
     viewModel: HomeViewModel = viewModel()
 ) {
     val context = LocalContext.current
-    var wordbookList by remember { mutableStateOf<List<String>>(emptyList()) }
+    val app = context.applicationContext as App
+    val vocabularyRepository = remember { VocabularyRepository(context, app.getAppVocabularyDao()) }
+    var wordbookList by remember { mutableStateOf<List<VocabularyBook>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // 加载 assets 中词书文件名
     LaunchedEffect(Unit) {
-        wordbookList = context.loadWordbookNames()
+        wordbookList = vocabularyRepository.getAvailableBooksFromAssets()
         isLoading = false
     }
 
@@ -82,10 +77,10 @@ fun WordbookSelectorScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                wordbookList.forEach { name ->
+                wordbookList.forEach { book ->
                     ElevatedCard(
                         onClick = {
-                            viewModel.selectWordbook(name)
+                            viewModel.selectWordbook(book.name)
                             viewModel.markFirstLaunchComplete()
                             navController.popBackStack()
                         },
@@ -106,7 +101,7 @@ fun WordbookSelectorScreen(
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text(
-                                    text = name,
+                                    text = book.name,
                                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis

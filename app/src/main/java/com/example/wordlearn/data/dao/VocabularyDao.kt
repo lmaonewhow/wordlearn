@@ -3,7 +3,10 @@ package com.example.wordlearn.data.dao
 import com.example.wordlearn.data.model.Word
 import com.example.wordlearn.data.model.WordStatus
 import java.time.LocalDate
+import androidx.room.Dao
+import androidx.room.Query
 
+@Dao
 interface VocabularyDao {
     suspend fun getAllWords(): List<Word>
 
@@ -42,4 +45,36 @@ interface VocabularyDao {
     
     // 获取所有错题（按错误次数降序排序）
     suspend fun getErrorWords(): List<Word>
+
+    /**
+     * 重置所有单词的学习状态
+     */
+    @Query("""
+        UPDATE words SET 
+        status = 'NEW',
+        lastReviewDate = NULL,
+        nextReviewDate = NULL,
+        reviewCount = 0
+        WHERE status != 'KNOWN'
+    """)
+    suspend fun resetAllWordsStatus()
+
+    /**
+     * 清理当前学习进度
+     */
+    @Query("""
+        UPDATE words SET 
+        status = 'NEW',
+        lastReviewDate = NULL,
+        nextReviewDate = NULL,
+        reviewCount = 0
+        WHERE status != 'KNOWN'
+    """)
+    suspend fun clearLearningProgress()
+
+    /**
+     * 更新最后修改时间
+     */
+    @Query("UPDATE vocabulary SET last_modified = :timestamp")
+    suspend fun updateLastModifiedTime(timestamp: Long = System.currentTimeMillis())
 } 

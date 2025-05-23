@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.wordlearn.data.model.*
 import com.example.wordlearn.data.store.AppSettingsKeys
 import com.example.wordlearn.data.store.settingsDataStore
+import com.example.wordlearn.data.manager.PromptManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,12 +31,21 @@ class ProfileViewModel : ViewModel() {
     val isComplete: StateFlow<Boolean> = _isComplete.asStateFlow()
 
     private val TAG = "ProfileViewModel"
+    private lateinit var promptManager: PromptManager
 
     var currentProfile by mutableStateOf<UserProfile?>(null)
         private set
         
     // 添加提示弹窗显示状态
     var showIncompleteWarning by mutableStateOf(false)
+
+    fun initialize(context: Context) {
+        Log.d(TAG, "初始化ProfileViewModel")
+        promptManager = PromptManager(context)
+        viewModelScope.launch {
+            promptManager.initialize()
+        }
+    }
 
     fun answerQuestion(questionId: String, answer: Any) {
         val newAnswers = _answers.value.toMutableMap()
@@ -150,6 +160,10 @@ class ProfileViewModel : ViewModel() {
                         throw e
                     }
                 }
+                
+                // 更新提示词
+                promptManager.updateWithProfile(profile)
+                Log.d(TAG, "已更新提示词配置")
                 
                 // 再次读取以验证保存成功
                 val updatedPreferences = context.settingsDataStore.data.first()

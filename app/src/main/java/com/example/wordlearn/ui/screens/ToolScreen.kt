@@ -44,13 +44,20 @@ fun ToolScreen(
     viewModel: ChatViewModel = viewModel(),
     toolViewModel: ToolViewModel = viewModel()
 ) {
-    var inputText by remember { mutableStateOf("") }
-    val coroutine = rememberCoroutineScope()
-    val kb = LocalSoftwareKeyboardController.current
+    val context = LocalContext.current
+    val messages = viewModel.messages
     val isLoading by viewModel.isLoading.collectAsState()
     val currentResponse by viewModel.currentResponse.collectAsState()
-    val context = LocalContext.current
-    
+    var inputText by remember { mutableStateOf("") }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val scope = rememberCoroutineScope()
+
+    // 初始化 ChatViewModel
+    LaunchedEffect(Unit) {
+        Log.d(TAG, "初始化ChatViewModel")
+        viewModel.initialize(context)
+    }
+
     // 状态收集
     val isProfileCompleted by toolViewModel.isProfileCompleted.collectAsState()
     
@@ -184,7 +191,7 @@ fun ToolScreen(
                     }
 
                     // 聊天消息
-                    items(viewModel.messages) { message ->
+                    items(messages) { message ->
                         this@Column.AnimatedVisibility(
                             visible = true,
                             enter = fadeIn() + slideInVertically(),
@@ -251,7 +258,7 @@ fun ToolScreen(
                             if (inputText.isNotBlank()) {
                                 viewModel.sendMessage(inputText)
                                 inputText = ""
-                                coroutine.launch { kb?.hide() }
+                                scope.launch { keyboardController?.hide() }
                             }
                         },
                         enabled = !isLoading && inputText.isNotBlank(),

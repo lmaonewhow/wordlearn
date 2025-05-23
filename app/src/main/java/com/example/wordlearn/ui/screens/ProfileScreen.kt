@@ -34,11 +34,17 @@ fun ProfileScreen(
     onComplete: () -> Unit,
     viewModel: ProfileViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val currentQuestionIndex by viewModel.currentQuestionIndex.collectAsState()
     val isComplete by viewModel.isComplete.collectAsState()
     val answers by viewModel.answers.collectAsState()
-    val context = LocalContext.current
-    
+
+    // 初始化 ViewModel
+    LaunchedEffect(Unit) {
+        Log.d(TAG, "初始化ProfileViewModel")
+        viewModel.initialize(context)
+    }
+
     // 当问卷完成时，保存用户配置并跳转
     LaunchedEffect(isComplete) {
         if (isComplete && viewModel.currentProfile != null) {
