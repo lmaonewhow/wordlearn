@@ -152,6 +152,14 @@ fun ReviewScreen(
         if (isReviewComplete) {
             // 显示提示
             Toast.makeText(context, message ?: "复习完成", Toast.LENGTH_SHORT).show()
+            
+            // 刷新主页数据
+            val app = context.applicationContext as App
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                app.homeViewModel?.refreshAfterTaskReturn()
+                Log.d(TAG, "复习完成，已触发主页数据刷新")
+            }
+            
             // 延迟一秒后返回
             kotlinx.coroutines.delay(1000)
             navController.navigateUp()
@@ -175,7 +183,14 @@ fun ReviewScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
+                    IconButton(onClick = { 
+                        // 返回前刷新主页数据
+                        val app = context.applicationContext as App
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                            app.homeViewModel?.refreshAfterTaskReturn()
+                        }
+                        navController.navigateUp() 
+                    }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "返回"
@@ -209,7 +224,14 @@ fun ReviewScreen(
                 )
                 Spacer(modifier = Modifier.height(24.dp))
                 Button(
-                    onClick = { navController.navigateUp() },
+                    onClick = { 
+                        // 返回前刷新主页数据
+                        val app = context.applicationContext as App
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                            app.homeViewModel?.refreshAfterTaskReturn()
+                        }
+                        navController.navigateUp() 
+                    },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     )

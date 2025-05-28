@@ -32,140 +32,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.firstOrNull
+import com.example.wordlearn.ui.viewmodel.AchievementViewModel
 
 private const val TAG = "LearningViewModel"
-
-// 词书缓存，保存已加载的词书内容
-private object WordBookCache {
-    // 缓存映射表，每个词书路径对应一个单词列表
-    private val cache = mutableMapOf<String, List<Word>>()
-    
-    // 首屏单词缓存 - 每个词书只缓存前100个单词用于快速显示
-    private val quickCache = mutableMapOf<String, List<Word>>()
-    
-    // 最后加载时间记录
-    private val lastLoadTime = mutableMapOf<String, Long>()
-    
-    // 缓存锁，防止并发加载
-    private val cacheLock = Any()
-    
-    // 正在加载的词书路径
-    private val loadingBooks = mutableSetOf<String>()
-    
-    // 从缓存获取单词列表
-    fun getWordList(filePath: String): List<Word>? {
-        synchronized(cacheLock) {
-            return cache[filePath]?.also {
-                lastLoadTime[filePath] = System.currentTimeMillis()
-                Log.d(TAG, "【缓存】命中完整缓存：$filePath")
-            }
-        }
-    }
-    
-    // 获取快速缓存的单词（仅前N个单词）
-    fun getQuickWordList(filePath: String, count: Int = 50): List<Word>? {
-        synchronized(cacheLock) {
-            // 尝试获取快速缓存
-            quickCache[filePath]?.let { 
-                lastLoadTime[filePath] = System.currentTimeMillis()
-                Log.d(TAG, "【缓存】命中快速缓存：$filePath")
-                return it 
-            }
-            
-            // 如果没有快速缓存但有完整缓存，创建快速缓存
-            return cache[filePath]?.take(count)?.also {
-                quickCache[filePath] = it
-                lastLoadTime[filePath] = System.currentTimeMillis()
-                Log.d(TAG, "【缓存】从完整缓存创建快速缓存：$filePath")
-            }
-        }
-    }
-    
-    // 保存单词列表到缓存
-    fun cacheWordList(filePath: String, wordList: List<Word>) {
-        synchronized(cacheLock) {
-            if (loadingBooks.contains(filePath)) {
-                Log.d(TAG, "【缓存】词书正在加载中，跳过缓存：$filePath")
-                return
-            }
-            
-            try {
-                loadingBooks.add(filePath)
-                cache[filePath] = wordList
-                quickCache[filePath] = wordList.take(50)
-                lastLoadTime[filePath] = System.currentTimeMillis()
-                Log.d(TAG, "【缓存】已缓存词书：$filePath")
-            } finally {
-                loadingBooks.remove(filePath)
-            }
-        }
-    }
-    
-    // 快速缓存单词列表
-    fun quickCacheWordList(filePath: String, wordList: List<Word>, count: Int = 50) {
-        synchronized(cacheLock) {
-            if (loadingBooks.contains(filePath)) {
-                Log.d(TAG, "【缓存】词书正在加载中，跳过快速缓存：$filePath")
-                return
-            }
-            
-            quickCache[filePath] = wordList.take(count)
-            lastLoadTime[filePath] = System.currentTimeMillis()
-            Log.d(TAG, "【缓存】已快速缓存词书：$filePath")
-        }
-    }
-    
-    // 清除缓存
-    fun clearCache() {
-        synchronized(cacheLock) {
-            cache.clear()
-            quickCache.clear()
-            lastLoadTime.clear()
-            loadingBooks.clear()
-            Log.d(TAG, "【缓存】已清除所有缓存")
-        }
-    }
-    
-    // 清除30分钟未使用的缓存
-    fun cleanupOldCache() {
-        synchronized(cacheLock) {
-            val now = System.currentTimeMillis()
-            val expireTime = 30 * 60 * 1000 // 30分钟
-            
-            val expiredFiles = lastLoadTime.filter { (_, time) -> 
-                now - time > expireTime 
-            }.keys.toList()
-            
-            expiredFiles.forEach { file ->
-                cache.remove(file)
-                quickCache.remove(file)
-                lastLoadTime.remove(file)
-                Log.d(TAG, "【缓存】清理过期缓存：$file")
-            }
-        }
-    }
-    
-    // 检查缓存是否存在
-    fun hasCached(filePath: String): Boolean {
-        synchronized(cacheLock) {
-            return cache.containsKey(filePath)
-        }
-    }
-    
-    // 检查快速缓存是否存在
-    fun hasQuickCached(filePath: String): Boolean {
-        synchronized(cacheLock) {
-            return quickCache.containsKey(filePath)
-        }
-    }
-    
-    // 检查词书是否正在加载
-    fun isLoading(filePath: String): Boolean {
-        synchronized(cacheLock) {
-            return loadingBooks.contains(filePath)
-        }
-    }
-}
 
 // 学习状态
 sealed class LearningState {
@@ -179,11 +49,15 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
     private val dataStore = context.settingsDataStore
     private val repository = (application as App).vocabularyRepository
     private val learningPlanRepository = LearningPlanRepository(application)
+    private val achievementViewModel: AchievementViewModel = AchievementViewModel(application)
 
     // 从 DataStore 读取持久化的进度
     private val _persistedProgress = dataStore.data
         .map { it[AppSettingsKeys.SELECTED_BOOK_PROGRESS] ?: 0f }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
+        
+    // 保存已经读取的DataStore值，方便同步访问
+    private var _persistedProgressValue: Float = 0f
 
     // 学习状态
     private val _learningState = MutableStateFlow<LearningState>(LearningState.Success)
@@ -196,6 +70,10 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
     // 学习进度状态
     private val _progress = MutableStateFlow(0)
     val progress: StateFlow<Int> = _progress.asStateFlow()
+
+    // Getter方法用于直接访问progress的值
+    val progressValue: Int
+        get() = _progress.value
 
     // 总单词数
     private val _totalWords = MutableStateFlow(0)
@@ -213,8 +91,15 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
     private val _todayLearned = MutableStateFlow(0)
     val todayLearned: StateFlow<Int> = _todayLearned.asStateFlow()
 
-    // 单词列表
-    private var wordList = listOf<Word>()
+    // 今日待复习数量
+    private val _todayReviewCount = MutableStateFlow(0)
+    val todayReviewCount: StateFlow<Int> = _todayReviewCount.asStateFlow()
+
+    // 单词列表 - 内部使用
+    private var _wordList = mutableListOf<Word>()
+    // 暴露给UI的单词列表
+    private val _wordListFlow = MutableStateFlow<List<Word>>(emptyList())
+    val wordList: StateFlow<List<Word>> = _wordListFlow.asStateFlow()
 
     // 未掌握的单词列表（索引）
     private val unknownWords = mutableSetOf<Int>()
@@ -239,6 +124,13 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
     init {
         // 加载学习计划
         viewModelScope.launch {
+            // 订阅进度变化
+            _persistedProgress.collect { progress ->
+                _persistedProgressValue = progress
+            }
+        }
+        
+        viewModelScope.launch {
             learningPlanRepository.learningPlan.collect { plan ->
                 _learningPlan.value = plan
                 plan?.dailyGoal?.newWordsCount?.let { count ->
@@ -249,6 +141,16 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
                     _dailyGoal.value = 20
                     Log.d(TAG, "【诊断】初始化 - 使用默认每日目标: 20")
                 }
+            }
+        }
+        
+        // 初始加载复习数量
+        viewModelScope.launch {
+            try {
+                val count = updateReviewCount()
+                Log.d(TAG, "【初始化】初始加载复习数量: $count")
+            } catch (e: Exception) {
+                Log.e(TAG, "【初始化】加载复习数量失败", e)
             }
         }
     }
@@ -268,28 +170,42 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
         
         viewModelScope.launch {
             try {
-                // 设置默认每日目标
-                if (_dailyGoal.value <= 0) {
-                    _dailyGoal.value = 20
-                    Log.d(TAG, "【初始化】设置默认每日目标: 20")
-                }
-                
                 // 初始化SharedPreferences
                 prefs = context.getSharedPreferences("learning_progress", Context.MODE_PRIVATE)
                 
                 // 从持久化存储加载进度
                 loadProgress()
                 
+                // 设置每日目标 - 从LearningPlanRepository获取而不是硬编码
+                if (_dailyGoal.value <= 0) {
+                    // 从Flow中收集最新值
+                    val plan = learningPlanRepository.learningPlan.firstOrNull()
+                    _dailyGoal.value = plan?.dailyGoal?.newWordsCount ?: 20
+                    Log.d(TAG, "【初始化】设置每日目标: ${_dailyGoal.value}")
+                }
+                
+                // 立即更新今日待复习数量（同步获取）
+                val reviewCount = withContext(Dispatchers.IO) {
+                    repository.getTodayReviewWordsCount()
+                }
+                _todayReviewCount.value = reviewCount
+                Log.d(TAG, "【初始化】同步获取待复习数量: $reviewCount")
+                
                 // 预加载当前词书
                 _currentBook.value?.let { book ->
                     withContext(Dispatchers.IO) {
                         preloadWordBook(book)
                     }
+                    
+                    // 从保存的进度开始加载单词
+                    if (_progress.value > 0 && _progress.value < _wordList.size) {
+                        loadNextWord()
+                    }
                 }
                 
                 // 初始化完成
                 _isInitialized.value = true
-                Log.d(TAG, "【初始化】完成 - 每日目标: ${_dailyGoal.value}, 当前进度: ${_progress.value}, 总单词数: ${_totalWords.value}")
+                Log.d(TAG, "【初始化】完成 - 每日目标: ${_dailyGoal.value}, 当前进度: ${_progress.value}, 总单词数: ${_totalWords.value}, 待复习单词: ${_todayReviewCount.value}")
                 
                 // 处理待加载的词书
                 pendingBook?.let { book ->
@@ -304,22 +220,17 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
         }
     }
     
-    // 预加载词书内容到缓存
+    // 预加载词书内容
     private suspend fun preloadWordBook(book: VocabularyBook) {
         try {
-            // 检查词书是否正在加载
-            if (WordBookCache.isLoading(book.filePath)) {
-                Log.d(TAG, "【预加载】词书正在加载中，跳过：${book.name}")
-                return
-            }
-            
             // 检查数据库中是否已存在该词书
             val isInDatabase = repository.isBookLoadedInDatabase(book.filePath)
             
-            // 如果缓存中已有该词书且数据库中也存在，直接使用缓存
-            if (WordBookCache.hasCached(book.filePath) && isInDatabase) {
-                Log.d(TAG, "【预加载】词书已在缓存和数据库中：${book.name}")
-                wordList = WordBookCache.getWordList(book.filePath) ?: emptyList()
+            if (isInDatabase) {
+                Log.d(TAG, "【预加载】词书已在数据库中：${book.name}")
+                val loadedWords = repository.getAllWords()
+                _wordList = ArrayList(loadedWords)
+                _wordListFlow.value = _wordList
                 return
             }
             
@@ -333,10 +244,9 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
                 }
             }
             
-            // 保存到缓存
-            WordBookCache.cacheWordList(book.filePath, loadedWordList)
-            
-            Log.d(TAG, "【预加载】完成，缓存了 ${loadedWordList.size} 个单词")
+            _wordList = ArrayList(loadedWordList)
+            _wordListFlow.value = _wordList
+            Log.d(TAG, "【预加载】完成，加载了 ${loadedWordList.size} 个单词")
         } catch (e: Exception) {
             Log.e(TAG, "【预加载】失败", e)
             throw e
@@ -362,11 +272,25 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
                     _progress.value = prefs.getInt("progress", 0)
                     _todayLearned.value = prefs.getInt("today_learned", 0)
                     
+                    // 加载保存的待复习单词数量
+                    _todayReviewCount.value = prefs.getInt("today_review_count", 0)
+                    
                     // 检查上次更新时间，如果不是今天则重置今日学习数
                     val lastUpdate = prefs.getLong("last_update", 0)
                     if (!android.text.format.DateUtils.isToday(lastUpdate)) {
                         _todayLearned.value = 0
                         Log.d(TAG, "【进度】非同一天，重置今日学习数量")
+                        
+                        // 不重置待复习数量，因为复习是跨天的
+                        // 但需要刷新一下数据库中实际的复习数量
+                        viewModelScope.launch {
+                            try {
+                                val count = updateReviewCount()
+                                Log.d(TAG, "【进度】刷新待复习数量: $count")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "【进度】刷新待复习数量失败", e)
+                            }
+                        }
                     }
                     
                     // 恢复未掌握单词列表
@@ -376,7 +300,7 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
                         unknownWords.addAll(unknownWordsString.split(",").mapNotNull { it.toIntOrNull() })
                     }
                     
-                    Log.d(TAG, "【进度】已恢复：${savedBook.name}, 进度=${_progress.value}, 今日学习=${_todayLearned.value}")
+                    Log.d(TAG, "【进度】已恢复：${savedBook.name}, 进度=${_progress.value}, 今日学习=${_todayLearned.value}, 待复习=${_todayReviewCount.value}")
                 } else {
                     Log.d(TAG, "【进度】未找到匹配的词书，清理保存的进度")
                     clearSavedProgress()
@@ -409,37 +333,41 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
                 putInt("today_learned", _todayLearned.value)
                 putString("unknown_words", unknownWords.joinToString(","))
                 putLong("last_update", System.currentTimeMillis())
+                // 保存今日需要复习的单词数
+                putInt("today_review_count", _todayReviewCount.value)
                 apply()
             }
             
             // 同步更新DataStore中的进度
             viewModelScope.launch {
                 _currentBook.value?.let { book ->
-                    if (_totalWords.value > 0) {
-                        val progressFloat = _progress.value.toFloat() / _totalWords.value.toFloat()
+                    if (_wordList.isNotEmpty()) {
+                        val progressFloat = _progress.value.toFloat() / _wordList.size.toFloat()
                         dataStore.edit { 
                             it[AppSettingsKeys.SELECTED_BOOK_PROGRESS] = progressFloat
                         }
+                        Log.d(TAG, "【进度】已更新DataStore中的词书总体进度: $progressFloat (${_progress.value}/${_wordList.size})")
                     }
                 }
             }
             
-            Log.d(TAG, "【进度】已保存：进度=${_progress.value}, 今日学习=${_todayLearned.value}")
+            Log.d(TAG, "【进度】已保存：进度=${_progress.value}, 今日学习=${_todayLearned.value}, 待复习=${_todayReviewCount.value}")
         } catch (e: Exception) {
             Log.e(TAG, "【进度】保存失败", e)
         }
     }
 
     // 检查今天是否是学习日
-    private fun isLearningDay(): Boolean {
+    private suspend fun isLearningDay(): Boolean {
         if (ignoreLearningDayCheck) return true
         val today = LocalDate.now().dayOfWeek
-        return _learningPlan.value?.dailyGoal?.activeDays?.contains(today) ?: true
+        val plan = learningPlanRepository.learningPlan.firstOrNull()
+        return plan?.dailyGoal?.activeDays?.contains(today) ?: true
     }
 
     // 检查是否达到每日学习目标
-    private fun hasReachedDailyGoal(): Boolean {
-        val plan = _learningPlan.value ?: return false
+    private suspend fun hasReachedDailyGoal(): Boolean {
+        val plan = learningPlanRepository.learningPlan.firstOrNull() ?: return false
         return _todayLearned.value >= plan.dailyGoal.newWordsCount
     }
 
@@ -449,7 +377,7 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
         return repository.getAvailableBooks()
     }
 
-    // 加载词汇书 - 优化版本
+    // 加载词汇书 - 直接加载不使用缓存
     fun loadVocabularyBook(book: VocabularyBook) {
         Log.d(TAG, "【加载】请求加载词汇书：${book.name}")
         
@@ -463,73 +391,77 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
             try {
                 _learningState.value = LearningState.Loading
                 
-                // 清理所有状态和缓存
-                withContext(Dispatchers.IO) {
-                    WordBookCache.clearCache()
+                // 检查是否是同一本词书且有保存的进度
+                val isSameBook = _currentBook.value?.filePath == book.filePath
+                val savedProgress = _progress.value
+                
+                // 如果不是同一本词书或没有进度，则清理状态
+                if (!isSameBook) {
+                    Log.d(TAG, "【加载】切换词书或首次加载，清理状态")
                     repository.clearLoadedBooksCache()
                     repository.clearTemporaryData()
+                    
+                    _progress.value = 0
+                    // 不重置今日学习数量，因为这是每日的统计
+                    // _todayLearned.value = 0 
+                    unknownWords.clear()
+                    _wordList.clear()
+                    _wordListFlow.value = _wordList
+                    _currentWord.value = null
+                    _totalWords.value = 0
+                } else {
+                    Log.d(TAG, "【加载】续读相同词书，保留进度 $savedProgress")
                 }
-                
-                _progress.value = 0
-                _todayLearned.value = 0
-                unknownWords.clear()
-                wordList = emptyList()
-                _currentWord.value = null
-                _totalWords.value = 0
                 
                 _currentBook.value = book
                 
                 // 等待数据库清理完成
-                delay(100)
-                
-                // 两阶段加载策略
-                var quickLoaded = false
-                
-                // 尝试从快速缓存加载
-                if (WordBookCache.hasQuickCached(book.filePath)) {
-                    Log.d(TAG, "【加载】使用快速缓存")
-                    val cachedWords = WordBookCache.getQuickWordList(book.filePath)
-                    if (!cachedWords.isNullOrEmpty()) {
-                        wordList = cachedWords
-                        quickLoaded = true
-                        Log.d(TAG, "【加载】快速缓存加载成功，包含 ${wordList.size} 个单词")
-                    }
+                if (!isSameBook) {
+                    delay(100)
                 }
                 
-                if (!quickLoaded) {
-                    withContext(Dispatchers.IO) {
-                        if (WordBookCache.hasCached(book.filePath)) {
-                            Log.d(TAG, "【加载】使用完整缓存")
-                            wordList = WordBookCache.getWordList(book.filePath) ?: emptyList()
-                        } else {
-                            Log.d(TAG, "【加载】从文件加载")
-                            wordList = when (book.type) {
-                                BookType.CSV -> repository.loadWordsFromCsv(book.filePath)
-                                BookType.TXT -> repository.loadWordsFromTxt(book.filePath)
-                            }
-                            WordBookCache.cacheWordList(book.filePath, wordList)
+                // 直接加载词书，不使用缓存
+                if (_wordList.isEmpty()) {
+                    val loadedWords = withContext(Dispatchers.IO) {
+                        when (book.type) {
+                            BookType.CSV -> repository.loadWordsFromCsv(book.filePath)
+                            BookType.TXT -> repository.loadWordsFromTxt(book.filePath)
                         }
                     }
+                    _wordList = ArrayList(loadedWords)
+                    _wordListFlow.value = _wordList
                 }
                 
                 // 计算实际可学习的单词数
                 val remainingToLearn = _dailyGoal.value - _todayLearned.value
-                _totalWords.value = if (remainingToLearn <= 0) {
-                    Log.d(TAG, "【加载】今日学习目标已完成，不再加载新单词")
+                
+                // 修改：如果今日学习目标已完成，不再加载额外单词
+                val effectiveLimit = if (remainingToLearn <= 0) {
+                    Log.d(TAG, "【加载】今日学习目标已完成(${_todayLearned.value}/${_dailyGoal.value})，不再加载新单词")
                     0
                 } else {
-                    minOf(wordList.size, remainingToLearn)
+                    // 否则加载剩余学习量
+                    minOf(_wordList.size, remainingToLearn)
                 }
                 
-                Log.d(TAG, "【加载】词库实际单词数量: ${wordList.size}, 今日可学习: ${_totalWords.value}")
+                _totalWords.value = effectiveLimit
                 
-                if (wordList.isEmpty()) {
+                // 检查是否有单词可学习
+                if (_wordList.isEmpty()) {
+                    Log.e(TAG, "【加载】单词列表为空")
                     _learningState.value = LearningState.Error("词汇书为空，请选择其他词汇书")
                     return@launch
                 }
                 
+                Log.d(TAG, "【加载】已设置总单词数：${_totalWords.value}，实际词库大小：${_wordList.size}")
+                
                 // 加载第一个单词
                 loadNextWord()
+                
+                // 更新今日待复习单词数
+                val reviewCount = updateReviewCount()
+                Log.d(TAG, "【加载】今日待复习单词数：$reviewCount")
+                
                 _learningState.value = LearningState.Success
                 
                 // 保存进度
@@ -547,12 +479,14 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             try {
                 _learningState.value = LearningState.Loading
-                Log.d(TAG, "正在加载下一个单词，当前进度：${_progress.value}")
+                val progressValue = _progress.value
+                Log.d(TAG, "正在加载下一个单词，当前进度：$progressValue")
                 
-                Log.d(TAG, "【诊断】加载单词检查 - 当前进度: ${_progress.value}, 总单词数: ${_totalWords.value}, 词库大小: ${wordList.size}")
+                Log.d(TAG, "【诊断】加载单词检查 - 当前进度: $progressValue, 总单词数: ${_totalWords.value}, 词库大小: ${_wordList.size}")
                 
-                if (_progress.value < _totalWords.value && _progress.value < wordList.size) {
-                    val word = wordList[_progress.value]
+                // 修改条件：只要进度值在有效词库范围内就加载单词，无论总单词数如何
+                if (progressValue < _wordList.size) {
+                    val word = _wordList[progressValue]
                     Log.d(TAG, "正在加载单词：${word.word}, ID=${word.id}, isFavorite=${word.isFavorite}, errorCount=${word.errorCount}")
                     
                     _currentWord.value = WordCard(
@@ -568,7 +502,7 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
                     
                     Log.d(TAG, "【诊断】成功加载单词: ${word.word}, ID=${word.id}, isFavorite=${word.isFavorite}")
                 } else {
-                    Log.d(TAG, "【诊断】没有更多单词需要加载: 进度=${_progress.value}, 总单词数=${_totalWords.value}, 词库大小=${wordList.size}")
+                    Log.d(TAG, "【诊断】没有更多单词需要加载: 进度=$progressValue, 总单词数=${_totalWords.value}, 词库大小=${_wordList.size}")
                     Log.d(TAG, "没有更多单词需要加载")
                     // 学习完成，设置为null
                     _currentWord.value = null
@@ -603,28 +537,31 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
                 // 更新今日学习数量
                 _todayLearned.value = _todayLearned.value + 1
                 
+                // 记录学习单词成就
+                achievementViewModel.recordWordLearned(1)
+                
                 // 检查是否在有效范围内
-                if (_progress.value < _totalWords.value) {
+                val currentProgress = _progress.value
+                if (currentProgress < _totalWords.value) {
                     // 保存当前进度
-                    val currentProgress = _progress.value
+                    Log.d(TAG, "处理用户选择 - 当前进度: $currentProgress, 总单词数: ${_totalWords.value}")
+                    
+                    // 获取当前单词
+                    val word = _wordList[currentProgress]
                     
                     if (!isKnown) {
                         unknownWords.add(currentProgress)
-                        val word = wordList[currentProgress]
                         if (word.id > 0) {
                             try {
                                 repository.incrementErrorCount(word.id)
+                                // 只有在不认识时才添加到今日复习队列
+                                addToTodayReview(word.id)
+                                Log.d(TAG, "单词已添加到今日复习队列: ${word.word}")
                             } catch (e: Exception) {
                                 Log.e(TAG, "记录错误失败: ${e.message}", e)
                             }
                         }
                     }
-                    
-                    // 使用新的进度更新方法
-                    updateProgress(currentProgress + 1, _totalWords.value)
-                    
-                    // 获取当前单词并更新其状态
-                    val word = wordList[currentProgress]
                     
                     // 计算下一次复习日期
                     val today = LocalDate.now()
@@ -638,24 +575,36 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
                                 status = WordStatus.NEEDS_REVIEW,
                                 lastReviewDate = today,
                                 nextReviewDate = nextReviewDate,
-                                reviewCount = 0
+                                reviewCount = if (isKnown) word.reviewCount + 1 else 0
                             )
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "更新单词状态失败: ${e.message}", e)
                     }
                     
+                    // 使用新的进度更新方法
+                    val newProgress = currentProgress + 1
+                    updateProgress(newProgress, _totalWords.value)
+                    
                     // 保存进度
                     saveProgress()
                     
                     // 加载下一个单词
-                    if (currentProgress + 1 < _totalWords.value) {
+                    if (newProgress < _totalWords.value) {
                         loadNextWord()
                     } else {
                         _currentWord.value = null
                     }
                 }
                 _learningState.value = LearningState.Success
+                
+                // 立即更新待复习单词数量
+                try {
+                    val reviewCount = updateReviewCount()
+                    Log.d(TAG, "处理单词后更新待复习数量: $reviewCount")
+                } catch (e: Exception) {
+                    Log.e(TAG, "更新待复习数量失败", e)
+                }
                 
                 // 刷新首页数据
                 try {
@@ -672,29 +621,28 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
     }
 
     // 获取学习统计
-    fun getLearningStats(): Triple<Int, Int, Int> {
+    suspend fun getLearningStats(): Triple<Int, Int, Int> {
         return try {
             val total = _totalWords.value
             
             // 获取今日实际学习的新单词数量
             val learned = _todayLearned.value
             
-            // 获取需要复习的单词数量
-            viewModelScope.launch {
-                try {
-                    val reviewCount = repository.getTodayReviewWordsCount()
-                    // 这里我们仅在日志中记录，因为这个方法不能是挂起函数
-                    Log.d(TAG, "今天需要复习的单词数量: $reviewCount")
-                } catch (e: Exception) {
-                    Log.e(TAG, "获取待复习单词数量失败", e)
-                }
+            // 用本地记录的不认识的单词数量
+            val unknownLocal = unknownWords.size
+            
+            // 同步获取今日复习单词数量
+            val reviewCount = withContext(Dispatchers.IO) {
+                repository.getTodayReviewWordsCount()
             }
             
-            // 用本地记录的不认识的单词数量
-            val unknown = unknownWords.size
+            // 计算总未掌握单词数（本地记录的 + 数据库中的复习单词）
+            val totalUnknown = unknownLocal + reviewCount
             
-            Log.d(TAG, "学习统计 - 目标：$total，今日已学习：$learned，未掌握：$unknown")
-            Triple(total, learned, unknown)
+            Log.d(TAG, "学习统计 - 目标：$total，今日已学习：$learned，" +
+                    "未掌握（本地）：$unknownLocal，数据库复习：$reviewCount，总计：$totalUnknown")
+            
+            Triple(total, learned, totalUnknown) // 返回总未掌握单词数
         } catch (e: Exception) {
             Log.e(TAG, "获取学习统计时出错", e)
             Triple(0, 0, 0)
@@ -715,31 +663,23 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
                 
                 // 重新加载当前词汇书
                 _currentBook.value?.let { book ->
-                    // 从缓存加载单词或从文件加载
-                    if (WordBookCache.hasCached(book.filePath)) {
-                        Log.d(TAG, "【缓存】使用缓存中的词书内容：${book.filePath}")
-                        wordList = WordBookCache.getWordList(book.filePath) ?: emptyList()
-                    } else {
-                        // 根据文件类型加载单词
-                        Log.d(TAG, "【缓存】缓存未命中，从${book.type}文件加载单词：${book.filePath}")
-                        wordList = when (book.type) {
-                            BookType.CSV -> repository.loadWordsFromCsv(book.filePath)
-                            BookType.TXT -> repository.loadWordsFromTxt(book.filePath)
-                        }
-                        // 保存到缓存
-                        WordBookCache.cacheWordList(book.filePath, wordList)
+                    // 直接从文件加载单词
+                    val loadedWords = when (book.type) {
+                        BookType.CSV -> repository.loadWordsFromCsv(book.filePath)
+                        BookType.TXT -> repository.loadWordsFromTxt(book.filePath)
                     }
+                    _wordList = ArrayList(loadedWords)
+                    _wordListFlow.value = _wordList
                     
-                    // 计算剩余需要学习的单词数
+                    // 计算剩余需要学习的单词数（已重置todayLearned，所以这里应该总是等于dailyGoal）
                     val remainingToLearn = _dailyGoal.value - _todayLearned.value
                     
-                    // 修复：恢复每日目标限制，但确保至少有1个单词可以学习
-                    val effectiveLimit = if (remainingToLearn <= 0) 1 else remainingToLearn
-                    _totalWords.value = minOf(wordList.size, effectiveLimit)
+                    // 限制单词数量不超过词库大小和每日目标
+                    _totalWords.value = minOf(_wordList.size, remainingToLearn)
                     
                     Log.d(TAG, "已加载${_totalWords.value}个单词，今日目标：${_dailyGoal.value}，已学习：${_todayLearned.value}")
                     
-                    if (wordList.isEmpty()) {
+                    if (_wordList.isEmpty()) {
                         Log.e(TAG, "单词列表为空")
                         _learningState.value = LearningState.Error("词汇书为空，请选择其他词汇书")
                         return@launch
@@ -752,6 +692,18 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
                     
                     // 保存重置后的状态
                     saveProgress()
+                    
+                    // 更新复习数量
+                    viewModelScope.launch {
+                        try {
+                            val count = updateReviewCount()
+                            Log.d(TAG, "【重置】更新复习数量: $count")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "【重置】更新复习数量失败", e)
+                        }
+                    }
+                    
+                    Log.d(TAG, "进度已重置")
                 } ?: run {
                     _learningState.value = LearningState.Error("请先选择词汇书")
                 }
@@ -769,42 +721,47 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
             try {
                 _learningState.value = LearningState.Loading
                 
-                // 重置所有状态
-                _progress.value = 0
+                // 获取当前词书总进度，以便稍后恢复
+                val currentBookProgress = _progress.value
+                val currentBook = _currentBook.value
+                
+                // 重置今日学习状态
                 _todayLearned.value = 0  // 重置今日学习数量
                 unknownWords.clear()
                 ignoreLearningDayCheck = true // 忽略学习日检查
                 
                 // 重新加载当前词汇书
                 _currentBook.value?.let { book ->
-                    // 从缓存加载单词或从文件加载
-                    if (WordBookCache.hasCached(book.filePath)) {
-                        Log.d(TAG, "【缓存】使用缓存中的词书内容：${book.filePath}")
-                        wordList = WordBookCache.getWordList(book.filePath) ?: emptyList()
-                    } else {
-                        // 根据文件类型加载单词
-                        Log.d(TAG, "【缓存】缓存未命中，从${book.type}文件加载单词：${book.filePath}")
-                        wordList = when (book.type) {
-                            BookType.CSV -> repository.loadWordsFromCsv(book.filePath)
-                            BookType.TXT -> repository.loadWordsFromTxt(book.filePath)
-                        }
-                        // 保存到缓存
-                        WordBookCache.cacheWordList(book.filePath, wordList)
+                    // 直接从文件加载单词
+                    val loadedWords = when (book.type) {
+                        BookType.CSV -> repository.loadWordsFromCsv(book.filePath)
+                        BookType.TXT -> repository.loadWordsFromTxt(book.filePath)
                     }
+                    _wordList = ArrayList(loadedWords)
+                    _wordListFlow.value = _wordList
                     
-                    // 计算剩余需要学习的单词数
+                    // 计算剩余需要学习的单词数（已重置todayLearned，所以这里应该总是等于dailyGoal）
                     val remainingToLearn = _dailyGoal.value - _todayLearned.value
                     
-                    // 修复：恢复每日目标限制，但确保至少有1个单词可以学习
-                    val effectiveLimit = if (remainingToLearn <= 0) 1 else remainingToLearn
-                    _totalWords.value = minOf(wordList.size, effectiveLimit)
+                    // 限制单词数量不超过词库大小和每日目标
+                    _totalWords.value = minOf(_wordList.size, remainingToLearn)
                     
                     Log.d(TAG, "已重新加载${_totalWords.value}个单词，今日目标：${_dailyGoal.value}")
                     
-                    if (wordList.isEmpty()) {
+                    if (_wordList.isEmpty()) {
                         Log.e(TAG, "单词列表为空")
                         _learningState.value = LearningState.Error("词汇书为空，请选择其他词汇书")
                         return@launch
+                    }
+                    
+                    // 恢复词书总体进度
+                    if (currentBook == book && currentBookProgress > 0) {
+                        // 如果是同一本书，保留原有词书总进度
+                        _progress.value = currentBookProgress
+                        Log.d(TAG, "保留词书总体进度: ${_progress.value}")
+                    } else {
+                        // 如果是不同书或没有进度，从头开始
+                        _progress.value = 0
                     }
                     
                     // 加载第一个单词
@@ -813,6 +770,16 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
                     
                     // 保存重置后的状态
                     saveProgress()
+                    
+                    // 更新复习数量
+                    viewModelScope.launch {
+                        try {
+                            val count = updateReviewCount()
+                            Log.d(TAG, "【重置】更新复习数量: $count")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "【重置】更新复习数量失败", e)
+                        }
+                    }
                     
                     Log.d(TAG, "进度已重置")
                 } ?: run {
@@ -827,7 +794,7 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
 
     override fun onCleared() {
         super.onCleared()
-        // 清理所有状态，但保留缓存数据
+        // 清理所有状态
         Log.d(TAG, "ViewModel已销毁，清理状态")
     }
     
@@ -847,34 +814,17 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
                     }
                 }
                 
-                // 更新缓存中的单词
-                _currentBook.value?.let { book ->
-                    // 获取缓存的单词列表
-                    val cachedList = WordBookCache.getWordList(book.filePath)
-                    if (cachedList != null) {
-                        // 查找并更新收藏单词
-                        val updatedList = cachedList.map { word ->
-                            if (word.id == wordId) {
-                                word.copy(isFavorite = isFavorite)
-                            } else {
-                                word
-                            }
-                        }
-                        // 更新缓存
-                        WordBookCache.cacheWordList(book.filePath, updatedList)
-                        Log.d(TAG, "已更新缓存中单词的收藏状态")
-                        
-                        // 如果是当前学习列表中的单词，也需要更新wordList
-                        wordList = wordList.map { word ->
-                            if (word.id == wordId) {
-                                word.copy(isFavorite = isFavorite)
-                            } else {
-                                word
-                            }
-                        }
-                        Log.d(TAG, "已更新当前学习列表中单词的收藏状态")
+                // 更新词汇列表中的单词
+                val updatedList = ArrayList<Word>()
+                for (word in _wordList) {
+                    if (word.id == wordId) {
+                        updatedList.add(word.copy(isFavorite = isFavorite))
+                    } else {
+                        updatedList.add(word)
                     }
                 }
+                _wordList = updatedList
+                _wordListFlow.value = _wordList
             } catch (e: Exception) {
                 Log.e(TAG, "更新收藏状态失败", e)
             }
@@ -887,7 +837,7 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             try {
                 // 查找当前单词以获取错误次数
-                val currentWord = wordList.find { it.id == wordId }
+                val currentWord = _wordList.find { it.id == wordId }
                 if (currentWord == null) {
                     Log.w(TAG, "未在当前列表中找到要记录错误的单词: ID=$wordId")
                 }
@@ -905,37 +855,152 @@ class LearningViewModel(application: Application) : AndroidViewModel(application
                     }
                 }
                 
-                // 更新缓存中的单词
-                _currentBook.value?.let { book ->
-                    // 获取缓存的单词列表
-                    val cachedList = WordBookCache.getWordList(book.filePath)
-                    if (cachedList != null) {
-                        // 查找并更新错题单词
-                        val updatedList = cachedList.map { word ->
-                            if (word.id == wordId) {
-                                word.copy(errorCount = newErrorCount)
-                            } else {
-                                word
-                            }
-                        }
-                        // 更新缓存
-                        WordBookCache.cacheWordList(book.filePath, updatedList)
-                        Log.d(TAG, "已更新缓存中单词的错误次数")
-                        
-                        // 如果是当前学习列表中的单词，也需要更新wordList
-                        wordList = wordList.map { word ->
-                            if (word.id == wordId) {
-                                word.copy(errorCount = newErrorCount)
-                            } else {
-                                word
-                            }
-                        }
-                        Log.d(TAG, "已更新当前学习列表中单词的错误次数")
+                // 更新词汇列表中的单词
+                val updatedList = ArrayList<Word>()
+                for (word in _wordList) {
+                    if (word.id == wordId) {
+                        updatedList.add(word.copy(errorCount = newErrorCount))
+                    } else {
+                        updatedList.add(word)
                     }
                 }
+                _wordList = updatedList
+                _wordListFlow.value = _wordList
             } catch (e: Exception) {
                 Log.e(TAG, "记录错误失败", e)
             }
         }
+    }
+    
+    // 添加单词到今日复习队列
+    fun addToTodayReview(wordId: Long) {
+        Log.d(TAG, "添加单词到今日复习队列: ID=$wordId")
+        viewModelScope.launch {
+            try {
+                // 获取当前日期
+                val today = LocalDate.now()
+                // 设置下次复习日期为今天（确保今天就会复习）
+                val nextReviewDate = today
+                
+                // 查询单词的当前状态
+                val word = repository.getWordById(wordId)
+                if (word != null) {
+                    // 打印详细日志
+                    Log.d(TAG, "将单词添加到今日复习: ID=${word.id}, 单词=${word.word}, 当前状态=${word.status}")
+                    Log.d(TAG, "当前日期: $today, 设置复习日期: $nextReviewDate")
+
+                    // 更新单词状态为需要复习，并设置复习日期为今天
+                    repository.updateWordStatus(
+                        wordId = wordId,
+                        status = WordStatus.NEEDS_REVIEW,
+                        lastReviewDate = today,
+                        nextReviewDate = nextReviewDate,
+                        reviewCount = word.reviewCount.coerceAtLeast(0) // 保留原有复习次数
+                    )
+                    Log.d(TAG, "已成功添加单词到今日复习队列: ID=$wordId, 单词=${word.word}")
+                    
+                    // 手动验证更新
+                    try {
+                        val updatedWord = repository.getWordById(wordId)
+                        updatedWord?.let {
+                            Log.d(TAG, "验证更新后的单词状态: ID=${it.id}, 状态=${it.status}, 复习日期=${it.nextReviewDate}")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "验证单词状态失败", e)
+                    }
+                } else {
+                    Log.w(TAG, "未找到要添加到复习队列的单词: ID=$wordId")
+                }
+                
+                // 手动延迟一小段时间后再刷新，确保数据库更新完成
+                delay(100)
+                
+                // 更新今日待复习数量
+                val reviewCount = updateReviewCount()
+                
+                // 刷新首页数据
+                try {
+                    // 手动获取今日复习数量进行验证
+                    Log.d(TAG, "更新后的今日复习数量: $reviewCount")
+                    
+                    repository.updateLearningCounts()
+                    (getApplication<Application>() as? App)?.homeViewModel?.forceRefreshNow()
+                    Log.d(TAG, "已刷新首页数据")
+                } catch (e: Exception) {
+                    Log.e(TAG, "刷新首页数据失败", e)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "添加单词到今日复习队列失败", e)
+            }
+        }
+    }
+
+    // 更新今日待复习数量
+    suspend fun updateReviewCount(): Int {
+        return try {
+            val count = withContext(Dispatchers.IO) {
+                repository.getTodayReviewWordsCount()
+            }
+            _todayReviewCount.value = count
+            Log.d(TAG, "更新今日待复习数量: $count")
+            count
+        } catch (e: Exception) {
+            Log.e(TAG, "更新今日待复习数量失败", e)
+            _todayReviewCount.value // 返回当前值
+        }
+    }
+
+    // 获取随机单词，用于游戏功能
+    fun getRandomWords(count: Int): StateFlow<List<Word>> {
+        val randomWords = MutableStateFlow<List<Word>>(emptyList())
+        
+        viewModelScope.launch {
+            try {
+                // 尝试从当前加载的词汇书获取
+                val currentWords = _wordListFlow.value
+                if (currentWords.isNotEmpty()) {
+                    // 如果有足够的单词，就随机选择
+                    if (currentWords.size >= count) {
+                        randomWords.value = currentWords.shuffled().take(count)
+                    } else {
+                        // 如果单词不够，就全部返回
+                        randomWords.value = currentWords.shuffled()
+                    }
+                } else {
+                    // 如果当前没有加载词汇书，从存储库中获取所有单词
+                    val allAvailableWords = repository.getAllWords()
+                    if (allAvailableWords.isNotEmpty()) {
+                        randomWords.value = allAvailableWords.shuffled().take(
+                            minOf(count, allAvailableWords.size)
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "获取随机单词失败: ${e.message}")
+                // 出错时返回空列表
+                randomWords.value = emptyList()
+            }
+        }
+        
+        return randomWords
+    }
+
+    // 获取所有已加载的单词，用于游戏功能
+    fun getAllWords(): StateFlow<List<Word>> {
+        val allWords = MutableStateFlow<List<Word>>(_wordListFlow.value)
+        
+        // 如果当前没有单词，尝试从存储库获取
+        if (_wordListFlow.value.isEmpty()) {
+            viewModelScope.launch {
+                try {
+                    val storedWords = repository.getAllWords()
+                    allWords.value = storedWords
+                } catch (e: Exception) {
+                    Log.e(TAG, "获取所有单词失败: ${e.message}")
+                }
+            }
+        }
+        
+        return allWords
     }
 } 

@@ -131,6 +131,186 @@ class VocabularyDaoImpl(
         return words
     }
 
+    override suspend fun getTodayNewWords(count: Int): List<Word> {
+        Log.d(TAG, "获取今日新单词，数量: $count")
+        val words = mutableListOf<Word>()
+        val db = database.readableDatabase
+        
+        // 获取状态为NEW的单词
+        val selection = "status = ?"
+        val selectionArgs = arrayOf(WordStatus.NEW.name)
+        
+        val cursor = db.query(
+            "words",
+            null,
+            selection,
+            selectionArgs,
+            null,
+            null,
+            "RANDOM()",  // 随机排序
+            count.toString()  // 限制数量
+        )
+        
+        cursor.use {
+            while (it.moveToNext()) {
+                val word = cursor.toWord()
+                Log.d(TAG, "今日新单词: ${word.word}")
+                words.add(word)
+            }
+        }
+        
+        Log.d(TAG, "获取到 ${words.size} 个今日新单词")
+        return words
+    }
+
+    override suspend fun getTodayLearningWords(today: LocalDate): List<Word> {
+        Log.d(TAG, "获取今日已学习单词，日期: $today")
+        val words = mutableListOf<Word>()
+        val db = database.readableDatabase
+        
+        // 获取今天学习过的单词 (状态为NEEDS_REVIEW且最后复习日期是今天)
+        val selection = "status = ? AND lastReviewDate = ?"
+        val selectionArgs = arrayOf(
+            WordStatus.NEEDS_REVIEW.name,
+            today.toString()
+        )
+        
+        val cursor = db.query(
+            "words",
+            null,
+            selection,
+            selectionArgs,
+            null,
+            null,
+            null
+        )
+        
+        cursor.use {
+            while (it.moveToNext()) {
+                val word = cursor.toWord()
+                Log.d(TAG, "今日学习单词: ${word.word}, 最后复习: ${word.lastReviewDate}")
+                words.add(word)
+            }
+        }
+        
+        Log.d(TAG, "获取到 ${words.size} 个今日学习单词")
+        return words
+    }
+
+    override suspend fun getPlannedReviewWords(
+        today: LocalDate,
+        intervalDays: List<Int>,
+        limit: Int
+    ): List<Word> {
+        Log.d(TAG, "获取计划复习单词，日期: $today，间隔: $intervalDays，限制: $limit")
+        val words = mutableListOf<Word>()
+        val db = database.readableDatabase
+        
+        // 构建查询条件，获取复习次数对应间隔天数的单词
+        var selection = "status = ? AND nextReviewDate <= ?"
+        var selectionArgs = arrayOf(
+            WordStatus.NEEDS_REVIEW.name,
+            today.toString()
+        )
+        
+        // 如果有指定间隔，添加复习次数条件
+        if (intervalDays.isNotEmpty()) {
+            // 构建复习次数条件：reviewCount IN (0, 1, 2, ...)
+            val reviewCountCondition = intervalDays.indices.joinToString(", ")
+            if (reviewCountCondition.isNotEmpty()) {
+                selection += " AND reviewCount IN ($reviewCountCondition)"
+            }
+        }
+        
+        val cursor = db.query(
+            "words",
+            null,
+            selection,
+            selectionArgs,
+            null,
+            null,
+            "nextReviewDate ASC", // 按复习日期升序
+            limit.toString()
+        )
+        
+        cursor.use {
+            while (it.moveToNext()) {
+                val word = cursor.toWord()
+                Log.d(TAG, "计划复习单词: ${word.word}, 复习次数: ${word.reviewCount}, 下次复习: ${word.nextReviewDate}")
+                words.add(word)
+            }
+        }
+        
+        Log.d(TAG, "获取到 ${words.size} 个计划复习单词")
+        return words
+    }
+
+    override suspend fun markWordAsLearning(
+        wordId: Long,
+        today: LocalDate,
+        nextReviewDay: LocalDate
+    ) {
+        Log.d(TAG, "标记单词为学习中状态: wordId=$wordId, today=$today, nextReview=$nextReviewDay")
+        val db = database.writableDatabase
+        
+        val values = ContentValues().apply {
+            put("status", WordStatus.NEEDS_REVIEW.name)
+            put("lastReviewDate", today.toString())
+            put("nextReviewDate", nextReviewDay.toString())
+            put("reviewCount", 0)
+        }
+        
+        val updatedRows = db.update(
+            "words",
+            values,
+            "id = ?",
+            arrayOf(wordId.toString())
+        )
+        
+        if (updatedRows > 0) {
+            Log.d(TAG, "成功标记单词为学习中状态")
+            // 状态更新后清除缓存
+            allWordsCache = null
+        } else {
+            Log.w(TAG, "标记单词失败，可能单词ID不存在")
+        }
+    }
+
+    override suspend fun updateNextReviewDate(
+        wordId: Long,
+        lastReviewDate: LocalDate,
+        nextReviewDate: LocalDate,
+        reviewCount: Int
+    ): Boolean {
+        Log.d(TAG, "更新下次复习日期: wordId=$wordId, lastReview=$lastReviewDate, nextReview=$nextReviewDate, reviewCount=$reviewCount")
+        val db = database.writableDatabase
+        
+        val values = ContentValues().apply {
+            put("lastReviewDate", lastReviewDate.toString())
+            put("nextReviewDate", nextReviewDate.toString())
+            put("reviewCount", reviewCount)
+        }
+        
+        val updatedRows = db.update(
+            "words",
+            values,
+            "id = ?",
+            arrayOf(wordId.toString())
+        )
+        
+        val success = updatedRows > 0
+        
+        if (success) {
+            Log.d(TAG, "成功更新下次复习日期")
+            // 状态更新后清除缓存
+            allWordsCache = null
+        } else {
+            Log.w(TAG, "更新下次复习日期失败")
+        }
+        
+        return success
+    }
+
     override suspend fun getReviewCount(wordId: Long): Int {
         Log.d(TAG, "获取单词复习次数: wordId=$wordId")
         val db = database.readableDatabase
@@ -225,26 +405,66 @@ class VocabularyDaoImpl(
         // 手动清除缓存，确保获取最新数据
         allWordsCache = null
         
+        // 修改查询条件：包含状态为NEEDS_REVIEW且nextReviewDate <= today的单词
+        // 同时添加日志以便追踪
+        val todayStr = today.toString()
+        Log.d(TAG, "查询条件: status = NEEDS_REVIEW AND nextReviewDate <= $todayStr")
+        
         val cursor = db.query(
             "words",
             arrayOf("COUNT(*)"),
             "status = ? AND nextReviewDate <= ?",
-            arrayOf(WordStatus.NEEDS_REVIEW.name, today.toString()),
+            arrayOf(WordStatus.NEEDS_REVIEW.name, todayStr),
             null,
             null,
             null
         )
         
-        return cursor.use {
+        val count = cursor.use {
             if (it.moveToFirst()) {
-                val count = it.getInt(0)
-                Log.d(TAG, "今天需要复习 $count 个单词")
-                count
+                it.getInt(0)
             } else {
-                Log.d(TAG, "没有找到需要复习的单词")
                 0
             }
         }
+        
+        Log.d(TAG, "今天需要复习 $count 个单词")
+        
+        // 额外检查：打印几个最近添加到复习队列的单词详情
+        if (count == 0) {
+            try {
+                Log.d(TAG, "当前需要复习的单词数为0，检查数据库中的单词状态")
+                val debugCursor = db.query(
+                    "words",
+                    arrayOf("id", "word", "status", "nextReviewDate", "lastReviewDate"),
+                    "status = ?",
+                    arrayOf(WordStatus.NEEDS_REVIEW.name),
+                    null,
+                    null,
+                    "id DESC",
+                    "5"  // 只检查最近5个
+                )
+                
+                debugCursor.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        do {
+                            val id = cursor.getLong(0)
+                            val word = cursor.getString(1)
+                            val status = cursor.getString(2)
+                            val nextReview = cursor.getString(3)
+                            val lastReview = cursor.getString(4)
+                            Log.d(TAG, "NEEDS_REVIEW状态单词: ID=$id, 单词=$word, 状态=$status, 下次复习=$nextReview, 最后复习=$lastReview")
+                        } while (cursor.moveToNext())
+                    } else {
+                        Log.d(TAG, "数据库中没有NEEDS_REVIEW状态的单词")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "调试查询失败", e)
+            }
+        }
+        
+        return count
     }
 
     private fun Cursor.toWord(): Word {
@@ -297,68 +517,27 @@ class VocabularyDaoImpl(
     }
 
     override suspend fun updateFavoriteStatus(wordId: Long, isFavorite: Boolean) {
-        Log.d(TAG, "更新单词收藏状态: wordId=$wordId, isFavorite=$isFavorite")
         try {
             val db = database.writableDatabase
             
-            // 确保事务完整性
-            db.beginTransaction()
-            try {
-                // 首先检查isFavorite列是否存在
-                val cursor = db.rawQuery("PRAGMA table_info(words)", null)
-                val columnExists = cursor.use { c ->
-                    var exists = false
-                    while (c.moveToNext()) {
-                        val columnName = c.getString(c.getColumnIndex("name"))
-                        if (columnName == "isFavorite") {
-                            exists = true
-                            break
-                        }
-                    }
-                    exists
-                }
-                
-                // 如果列不存在，添加列
-                if (!columnExists) {
-                    Log.w(TAG, "isFavorite列不存在，正在添加")
-                    db.execSQL("ALTER TABLE words ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
-                    db.execSQL("CREATE INDEX IF NOT EXISTS idx_words_favorite ON words(isFavorite)")
-                }
-                
-                val values = ContentValues().apply {
-                    put("isFavorite", if (isFavorite) 1 else 0)
-                }
-                
-                val updatedRows = db.update(
-                    "words",
-                    values,
-                    "id = ?",
-                    arrayOf(wordId.toString())
-                )
-                
-                if (updatedRows > 0) {
-                    Log.d(TAG, "成功更新单词收藏状态: wordId=$wordId, isFavorite=$isFavorite")
-                } else {
-                    Log.w(TAG, "未找到要更新的单词: wordId=$wordId")
-                }
-                
-                db.setTransactionSuccessful()
-            } finally {
-                db.endTransaction()
+            val values = ContentValues().apply {
+                put("isFavorite", if (isFavorite) 1 else 0)
             }
             
-            // 状态更新后清除缓存
+            val rowsAffected = db.update(
+                "words",
+                values,
+                "id = ?",
+                arrayOf(wordId.toString())
+            )
+            
+            Log.i(TAG, "更新单词收藏状态: ID=$wordId, 收藏=$isFavorite, 结果=${rowsAffected > 0}")
+            
+            // 清除缓存
             allWordsCache = null
             
         } catch (e: Exception) {
-            Log.e(TAG, "更新收藏状态时出错: ${e.message}", e)
-            // 创建索引以修复问题
-            try {
-                val db = database.writableDatabase
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_words_favorite ON words(isFavorite)")
-            } catch (indexEx: Exception) {
-                Log.e(TAG, "创建收藏索引失败", indexEx)
-            }
+            Log.e(TAG, "更新单词收藏状态时出错: ${e.message}", e)
         }
     }
 
@@ -681,6 +860,30 @@ class VocabularyDaoImpl(
             }
         } catch (e: Exception) {
             Log.e(TAG, "更新最后修改时间时出错: ${e.message}", e)
+        }
+    }
+
+    override suspend fun clearAllWords() {
+        try {
+            val db = database.writableDatabase
+            
+            db.beginTransaction()
+            try {
+                // 删除所有单词数据
+                val deletedRows = db.delete("words", null, null)
+                
+                Log.i(TAG, "已清空单词表，删除了 $deletedRows 条记录")
+                
+                db.setTransactionSuccessful()
+                
+                // 清除缓存
+                allWordsCache = null
+                
+            } finally {
+                db.endTransaction()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "清空单词表时出错: ${e.message}", e)
         }
     }
 } 

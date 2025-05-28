@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import android.media.MediaPlayer
 import android.media.AudioAttributes
 import android.media.AudioManager
@@ -47,7 +48,9 @@ import android.net.ConnectivityManager
 import android.os.Handler
 import android.os.Looper
 import android.content.SharedPreferences
+import androidx.compose.material.icons.filled.ArrowBack
 import com.example.wordlearn.App
+import kotlinx.coroutines.delay
 
 private const val TAG = "LearningScreen"
 
@@ -65,6 +68,10 @@ fun LearningScreen(
     val totalWords by viewModel.totalWords.collectAsStateWithLifecycle()
     val currentBook by viewModel.currentBook.collectAsStateWithLifecycle()
     val learningState by viewModel.learningState.collectAsStateWithLifecycle()
+    val todayReviewCount by viewModel.todayReviewCount.collectAsStateWithLifecycle()
+    
+    // 使用rememberUpdatedState确保在协程中总是获取最新的值
+    val currentWordUpdated = rememberUpdatedState(currentWord)
     
     // 获取音效设置
     val context = LocalContext.current
@@ -92,6 +99,18 @@ fun LearningScreen(
                     .setUsage(AudioAttributes.USAGE_MEDIA)
                     .build()
             )
+        }
+    }
+
+    // 确保每次进入页面时都会初始化ViewModel
+    LaunchedEffect(key1 = Unit) {
+        Log.d(TAG, "【生命周期】进入学习页面，初始化ViewModel")
+        viewModel.initialize(context)
+        
+        // 如果有当前选中的书，确保加载
+        currentBook?.let { book ->
+            Log.d(TAG, "【生命周期】检测到当前书: ${book.name}, 确保加载")
+            viewModel.loadVocabularyBook(book)
         }
     }
 
@@ -170,7 +189,7 @@ fun LearningScreen(
                                     reset()
                                 }
                             }, 10000) // 10秒超时
-    }
+                        }
                         true
                     }
                     
@@ -186,6 +205,7 @@ fun LearningScreen(
 
     // 清理资源
     DisposableEffect(Unit) {
+        // 在组件销毁时执行清理
         onDispose {
             try {
                 if (mediaPlayer.isPlaying) {
@@ -198,7 +218,19 @@ fun LearningScreen(
                 }
                 soundEffectPlayer.release()
                 
-                Log.d(TAG, "所有MediaPlayer资源已释放")
+                // 取消所有协程
+                scope.launch {
+                    try {
+                        offsetX.stop()
+                        cardAlpha.stop()
+                        cardRotation.stop()
+                        cardScale.stop()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "停止动画时出错", e)
+                    }
+                }
+                
+                Log.d(TAG, "所有MediaPlayer资源和动画已释放")
             } catch (e: Exception) {
                 Log.e(TAG, "释放MediaPlayer时出错", e)
             }
@@ -237,7 +269,7 @@ fun LearningScreen(
     }
 
     // 监听音效设置变化
-    LaunchedEffect(Unit) {
+    DisposableEffect(Unit) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
             if (key == "sound_enabled") {
                 isSoundEnabled.value = prefs.getBoolean(key, true)
@@ -245,30 +277,63 @@ fun LearningScreen(
             }
         }
         sharedPrefs.registerOnSharedPreferenceChangeListener(listener)
+        
+        onDispose {
+            sharedPrefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
     }
 
     // 对话框状态
     var showNonLearningDayDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
 
-    // 处理错误状态
-    LaunchedEffect(learningState) {
-        if (learningState is LearningState.Error) {
-            Log.e(TAG, "显示错误：${(learningState as LearningState.Error).message}")
-            snackbarHostState.showSnackbar(
-                message = (learningState as LearningState.Error).message,
-                duration = SnackbarDuration.Short
-            )
-        }
-        when (learningState) {
-            is LearningState.Error -> {
-                val message = (learningState as LearningState.Error).message
-                if (message.contains("不是学习日")) {
-                    showNonLearningDayDialog = true
-                    errorMessage = message
+    // 通过协程获取学习统计数据
+    val learningStatsState = remember { mutableStateOf(Triple(0, 0, 0)) }
+    LaunchedEffect(Unit) {
+        try {
+            // 立即获取一次统计数据
+            learningStatsState.value = viewModel.getLearningStats()
+            
+            // 每10秒自动刷新一次统计数据
+            while (true) {
+                delay(10000) // 10秒刷新一次
+                try {
+                    learningStatsState.value = viewModel.getLearningStats()
+                    Log.d("LearningScreen", "自动刷新学习统计: ${learningStatsState.value}")
+                } catch (e: Exception) {
+                    Log.e("LearningScreen", "自动刷新统计失败", e)
                 }
             }
-            else -> {}
+        } catch (e: Exception) {
+            Log.e("LearningScreen", "获取学习统计失败", e)
+        }
+    }
+
+    // 处理错误状态
+    LaunchedEffect(learningState) {
+        try {
+            if (learningState is LearningState.Error) {
+                Log.e(TAG, "显示错误：${(learningState as LearningState.Error).message}")
+                snackbarHostState.showSnackbar(
+                    message = (learningState as LearningState.Error).message,
+                    duration = SnackbarDuration.Short
+                )
+            }
+            when (learningState) {
+                is LearningState.Error -> {
+                    val message = (learningState as LearningState.Error).message
+                    if (message.contains("不是学习日")) {
+                        showNonLearningDayDialog = true
+                        errorMessage = message
+                    }
+                }
+                else -> {}
+            }
+        } catch (e: CancellationException) {
+            // 正常取消，不需处理
+            Log.d(TAG, "LaunchedEffect正常取消")
+        } catch (e: Exception) {
+            Log.e(TAG, "处理错误状态时出错", e)
         }
     }
 
@@ -277,22 +342,31 @@ fun LearningScreen(
         Log.d(TAG, "处理滑动：${if (isKnown) "认识" else "不认识"}")
         
         try {
-            // 如果不认识，记录错误
+            // 如果不认识，记录错误并加入今日复习队列
             if (!isKnown) {
-                currentWord?.let { wordCard ->
+                val currentWordValue = currentWordUpdated.value
+                currentWordValue?.let { wordCard ->
                     // 确保有效的ID
                     if (wordCard.id > 0) {
                         // 使用协程启动错误记录，确保异步执行
                         scope.launch {
                             try {
+                                // 记录到错题本
                                 viewModel.recordError(wordCard.id)
                                 Log.d(TAG, "成功记录错误：单词=${wordCard.word}, ID=${wordCard.id}")
                                 
+                                // 添加到今日复习队列
+                                viewModel.addToTodayReview(wordCard.id)
+                                Log.d(TAG, "已添加到今日复习队列：${wordCard.word}")
+                                
                                 // 显示确认提示
                                 snackbarHostState.showSnackbar(
-                                    message = "已添加到错题本：${wordCard.word}",
+                                    message = "已添加到错题本和今日复习：${wordCard.word}",
                                     duration = SnackbarDuration.Short
                                 )
+                            } catch (e: CancellationException) {
+                                // 协程取消，正常行为
+                                Log.d(TAG, "记录错误协程被取消")
                             } catch (e: Exception) {
                                 Log.e(TAG, "记录错误失败", e)
                             }
@@ -307,12 +381,27 @@ fun LearningScreen(
             playSoundEffect(isKnown)
             viewModel.handleWordChoice(isKnown)
             scope.launch {
-                // 重置动画
-                offsetX.animateTo(0f, spring())
-                cardRotation.animateTo(0f, spring())
-                cardScale.animateTo(1f, spring())
-                cardAlpha.animateTo(1f, spring())
-                Log.d(TAG, "动画重置完成")
+                try {
+                    // 重置动画
+                    offsetX.animateTo(0f, spring())
+                    cardRotation.animateTo(0f, spring())
+                    cardScale.animateTo(1f, spring())
+                    cardAlpha.animateTo(1f, spring())
+                    Log.d(TAG, "动画重置完成")
+                    
+                    // 立即刷新学习统计数据，不等待10秒自动刷新
+                    try {
+                        learningStatsState.value = viewModel.getLearningStats()
+                        Log.d(TAG, "滑动后立即更新学习统计: ${learningStatsState.value}")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "滑动后更新统计失败", e)
+                    }
+                } catch (e: CancellationException) {
+                    // 协程取消，正常行为
+                    Log.d(TAG, "重置动画协程被取消")
+                } catch (e: Exception) {
+                    Log.e(TAG, "重置动画时出错", e)
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "处理滑动时出错", e)
@@ -350,11 +439,25 @@ fun LearningScreen(
         )
     }
 
-    // 获取学习进度数据
-    val learningStats = viewModel.getLearningStats()
-    val totalProgress = progress.toFloat() / totalWords.coerceAtLeast(1)  // 修正进度计算
+    // 使用收集的统计数据
+    val learningStats = learningStatsState.value
+    
+    // 获取词书状态
+    val wordList = viewModel.wordList.collectAsStateWithLifecycle()
+    
+    // 计算词书总进度 - 使用当前进度除以词库总大小
+    val bookProgress = if (wordList.value.isNotEmpty()) {
+        viewModel.progressValue.toFloat() / wordList.value.size.toFloat()
+    } else {
+        0f
+    }
+    
+    // 今日学习进度 - 使用当前进度除以今日目标
+    val todayProgress = progress.toFloat() / totalWords.coerceAtLeast(1)
+    
     val newWordsLearned = learningStats.second
-    val reviewNeeded = learningStats.third
+    // 现在统计中直接包含所有待复习单词
+    val totalReviewNeeded = learningStats.third
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -367,18 +470,22 @@ fun LearningScreen(
                             style = MaterialTheme.typography.titleMedium
                         )
                         Text(
-                            text = "进度: ${(totalProgress * 100).toInt()}%",
+                            text = "词书进度: ${(bookProgress * 100).toInt()}% | 今日进度: ${(todayProgress * 100).toInt()}%",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController?.navigateUp() }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
-                        )
+                    IconButton(onClick = { 
+                        // 返回前刷新主页数据
+                        val app = context.applicationContext as App
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                            app.homeViewModel?.refreshAfterTaskReturn()
+                        }
+                        navController?.navigateUp() 
+                    }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
@@ -397,7 +504,7 @@ fun LearningScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Text(
-                                text = "待复习: $reviewNeeded",
+                                text = "待复习: $totalReviewNeeded",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -435,7 +542,7 @@ fun LearningScreen(
                     ) {
                         // 进度条
                         LinearProgressIndicator(
-                            progress = totalProgress,
+                            progress = todayProgress,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(8.dp)
@@ -453,12 +560,12 @@ fun LearningScreen(
                         ) {
                             Column {
                                 Text(
-                                    text = "新学单词",
+                                    text = "今日学习",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    text = "$newWordsLearned",
+                                    text = "$newWordsLearned/${totalWords}",
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.primary
                                 )
@@ -470,7 +577,7 @@ fun LearningScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    text = "$reviewNeeded",
+                                    text = "$totalReviewNeeded",
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.error
                                 )
@@ -521,8 +628,14 @@ fun LearningScreen(
                                     // 尝试重新加载当前词书
                                     val book = currentBook
                                     if (book != null) {
-                                        LaunchedEffect(Unit) {
-                                            viewModel.loadVocabularyBook(book)
+                                        LaunchedEffect(key1 = book.name) {
+                                            try {
+                                                viewModel.loadVocabularyBook(book)
+                                            } catch (e: CancellationException) {
+                                                Log.d(TAG, "加载词书协程已取消")
+                                            } catch (e: Exception) {
+                                                Log.e(TAG, "加载词书出错", e)
+                                            }
                                         }
                                     }
                                     
@@ -837,7 +950,17 @@ private fun WordCardContent(
 
 @Composable
 private fun LearningCompletionContent(viewModel: LearningViewModel) {
-    val stats = viewModel.getLearningStats()
+    // 通过协程获取学习统计数据
+    val statsState = remember { mutableStateOf(Triple(0, 0, 0)) }
+    LaunchedEffect(Unit) {
+        try {
+            statsState.value = viewModel.getLearningStats()
+        } catch (e: Exception) {
+            Log.e("LearningScreen", "获取完成页统计失败", e)
+        }
+    }
+
+    val stats = statsState.value
     
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,

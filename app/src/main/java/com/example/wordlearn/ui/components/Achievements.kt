@@ -11,6 +11,11 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Games
+import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Create
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -115,9 +120,15 @@ fun AchievementCard(
 
 @Composable
 private fun getAchievementIcon(type: AchievementType) = when (type) {
+    AchievementType.FIRST_WORD -> Icons.Default.Star
     AchievementType.WORDS_LEARNED -> Icons.Default.Info
     AchievementType.DAILY_STREAK -> Icons.Default.Star
     AchievementType.REVIEW_COMPLETED -> Icons.Default.Done
-    AchievementType.TIME_SPENT -> Icons.Default.Add
+    AchievementType.GAME_MASTER -> Icons.Default.EmojiEvents
+    AchievementType.GAME_PLAYED -> Icons.Default.Games
     AchievementType.ACCURACY_RATE -> Icons.Default.CheckCircle
+    AchievementType.WORD_CHAIN_MASTER -> Icons.Default.Extension
+    AchievementType.MEMORY_MASTER -> Icons.Default.Timer
+    AchievementType.WORD_MATCH_MASTER -> Icons.Default.Games
+    AchievementType.FILL_BLANKS_MASTER -> Icons.Default.Create
 } 

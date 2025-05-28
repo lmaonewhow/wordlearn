@@ -11,18 +11,6 @@ import retrofit2.http.Header
 import retrofit2.http.POST
 import java.util.concurrent.TimeUnit
 
-/*
-/compatible-mode/v1
-* */
-//interface ChatApi {
-//    @POST("api/v1/services/aigc/text-generation/generation")
-//    suspend fun chat(
-//        @Header("Authorization") auth: String,
-//        @Body request: ChatRequest
-//    ): ChatResponse
-//}
-
-
 interface ChatApi {
     @POST("compatible-mode/v1/chat/completions")
     suspend fun chat(

@@ -47,6 +47,28 @@ class App : Application() {
         return learningViewModel as LearningViewModel
     }
     
+    // 获取当日学习目标数量
+    fun getLearningPlanGoal(): Int? {
+        return try {
+            // 通过获取LearningViewModel来间接访问学习目标
+            getLearningViewModel().dailyGoal.value
+        } catch (e: Exception) {
+            Log.e(TAG, "获取学习目标失败", e)
+            null
+        }
+    }
+    
+    // 获取今日已学习单词数量
+    fun getTodayLearnedCount(): Int? {
+        return try {
+            // 直接从LearningViewModel中获取
+            getLearningViewModel().todayLearned.value
+        } catch (e: Exception) {
+            Log.e(TAG, "获取今日已学习单词数失败", e)
+            null
+        }
+    }
+    
     // 公共方法来获取 VocabularyDao 实例
     fun getAppVocabularyDao(): VocabularyDao {
         return database.vocabularyDao()
@@ -54,56 +76,19 @@ class App : Application() {
     
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "应用程序启动")
         
-        // 初始化依赖
-        vocabularyRepository = VocabularyRepository(
-            context = this,
-            vocabularyDao = database.vocabularyDao()
-        )
+        // 初始化仓库
+        vocabularyRepository = VocabularyRepository(this, database.vocabularyDao())
         
-        // 初始化视图模型工厂
+        // 初始化ViewModel工厂
         learningViewModelFactory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
-                return LearningViewModel(this@App) as T
-            }
-        }
-        
-        // 预加载最近使用的词书
-//        preloadRecentWordbook()
-    }
-    
-    // 预加载最近使用的词书
-    private fun preloadRecentWordbook() {
-        applicationScope.launch {
-            try {
-                Log.d(TAG, "【缓存】正在预加载最近使用的词书...")
-                
-                // 获取最近使用的词书名称
-                val prefs = getSharedPreferences("learning_progress", Context.MODE_PRIVATE)
-                val savedBookName = prefs.getString("current_book", null)
-                
-                if (savedBookName != null) {
-                    // 找到对应的词书
-                    val books = vocabularyRepository.getAvailableBooks()
-                    val recentBook = books.find { it.name == savedBookName }
-                    
-                    if (recentBook != null) {
-                        Log.d(TAG, "【缓存】找到最近使用的词书: ${recentBook.name}")
-                        
-                        // 预先初始化ViewModel并预加载词书
-                        val viewModel = getLearningViewModel()
-                        
-                        // 异步预加载词书内容
-                        Log.d(TAG, "【缓存】正在后台预加载词书内容...")
-                    } else {
-                        Log.d(TAG, "【缓存】未找到最近使用的词书: $savedBookName")
-                    }
-                } else {
-                    Log.d(TAG, "【缓存】没有最近使用的词书记录")
+                if (modelClass.isAssignableFrom(LearningViewModel::class.java)) {
+                    @Suppress("UNCHECKED_CAST")
+                    return getLearningViewModel() as T
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "【缓存】预加载词书时出错", e)
+                throw IllegalArgumentException("Unknown ViewModel class")
             }
         }
     }

@@ -6,17 +6,6 @@ import java.time.DayOfWeek
 import java.time.LocalTime
 
 
-// 词典配置
-@Serializable
-data class DictionaryConfig(
-    val learningGoal: String, // 学习目标
-    val readingInterests: List<String>, // 阅读兴趣
-    val proficiencyLevel: String, // 等级
-    val customWords: List<String>, // 自己的word
-    val learningStyle: String // 学习的风格
-)
-
-
 // 学习计划数据类
 @Serializable
 data class LearningPlan(
@@ -96,24 +85,4 @@ enum class LearningGoal {
     DAILY_TIME,          // 每日时长目标
     WEEKLY_COMPLETION,    // 每周完成度
     MONTHLY_COMPLETION    // 每月完成度
-}
-
-// 成就
-data class Achievement(
-    val id: String,
-    val name: String,
-    val description: String,
-    val type: AchievementType,
-    val requiredValue: Int,
-    val icon: String,
-    val unlockedAt: String? = null  // 解锁时间，为null表示未解锁
-)
-
-// 成就类型
-enum class AchievementType {
-    WORDS_LEARNED,        // 学习单词总数
-    DAILY_STREAK,        // 连续学习天数
-    REVIEW_COMPLETED,    // 完成复习次数
-    TIME_SPENT,         // 累计学习时长
-    ACCURACY_RATE       // 正确率达标
 } 

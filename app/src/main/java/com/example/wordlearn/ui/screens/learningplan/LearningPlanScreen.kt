@@ -21,7 +21,7 @@ import com.example.wordlearn.ui.viewmodel.LearningPlanViewModel
 @Composable
 fun LearningPlanScreen(
     onBackClick: () -> Unit,
-    viewModel: LearningPlanViewModel = viewModel()
+    viewModel: LearningPlanViewModel
 ) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("学习计划", "学习记录", "成就")

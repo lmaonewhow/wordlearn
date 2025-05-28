@@ -444,6 +444,25 @@ class VocabularyRepository(
     }
 
     /**
+     * 通过ID获取单词详情
+     */
+    suspend fun getWordById(wordId: Long): Word? {
+        try {
+            Log.d(TAG, "正在查询单词，ID: $wordId")
+            val word = vocabularyDao.getWordById(wordId)
+            if (word != null) {
+                Log.d(TAG, "成功获取单词: ${word.word}")
+            } else {
+                Log.w(TAG, "未找到ID为 $wordId 的单词")
+            }
+            return word
+        } catch (e: Exception) {
+            Log.e(TAG, "通过ID查询单词失败: $wordId", e)
+            return null
+        }
+    }
+
+    /**
      * 清理数据库中的临时数据
      * 包括：
      * 1. 重置所有单词的学习状态
@@ -469,6 +488,55 @@ class VocabularyRepository(
                 Log.e(TAG, "清理数据库临时数据失败", e)
                 throw e
             }
+        }
+    }
+
+    /**
+     * 从词书文件导入单词
+     * @param book 要导入的词书
+     * @return 导入的单词列表
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    suspend fun importWordsFromBookFile(book: VocabularyBook): List<Word> {
+        Log.d(TAG, "开始导入词书: ${book.name}, 路径: ${book.filePath}")
+        return when (book.type) {
+            BookType.CSV -> loadWordsFromCsv(book.filePath)
+            BookType.TXT -> loadWordsFromTxt(book.filePath)
+            else -> {
+                Log.e(TAG, "不支持的词书类型: ${book.type}")
+                emptyList()
+            }
+        }
+    }
+    
+    /**
+     * 将单词列表保存到数据库
+     * @param words 要保存的单词列表
+     * @return 成功保存的单词数量
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    suspend fun storeWordsInDatabase(words: List<Word>): Int {
+        if (words.isEmpty()) {
+            Log.w(TAG, "没有单词需要保存到数据库")
+            return 0
+        }
+        
+        Log.d(TAG, "开始将 ${words.size} 个单词保存到数据库")
+        return try {
+            // 清空现有数据
+            vocabularyDao.clearAllWords()
+            
+            // 批量插入单词
+            vocabularyDao.insertWords(words)
+            
+            // 更新数据库最后修改时间
+            vocabularyDao.updateLastModifiedTime()
+            
+            Log.d(TAG, "成功保存 ${words.size} 个单词到数据库")
+            words.size
+        } catch (e: Exception) {
+            Log.e(TAG, "保存单词到数据库失败", e)
+            0
         }
     }
 } 

@@ -10,14 +10,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.Color
 import com.example.wordlearn.ui.viewmodel.LearningPlanViewModel
-import com.example.wordlearn.ui.theme.ThemeManager
 
 @Composable
 fun ReviewSettingsCard(viewModel: LearningPlanViewModel) {
     val reviewSettings by viewModel.reviewSettings.collectAsState()
-    val isDarkMode by ThemeManager.isDarkMode
     
     Card(
         modifier = Modifier.fillMaxWidth(),

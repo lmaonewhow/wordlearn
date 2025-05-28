@@ -1,5 +1,6 @@
 package com.example.wordlearn.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,16 +17,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.wordlearn.ui.viewmodel.HomeViewModel
+import com.example.wordlearn.ui.viewmodel.LearningPlanViewModel
+import com.example.wordlearn.ui.viewmodel.LearningViewModel
 import com.example.wordlearn.ui.components.WordbookCard
 import com.example.wordlearn.navigation.NavRoute
 
 @Composable
-fun HomeScreen(navController: NavController, innerPadding: PaddingValues, viewModel: HomeViewModel = viewModel()) {
+fun HomeScreen(
+    navController: NavController, 
+    innerPadding: PaddingValues, 
+    viewModel: HomeViewModel = viewModel(),
+    learningPlanViewModel: LearningPlanViewModel,
+    learningViewModel: LearningViewModel
+) {
     val username by viewModel.username.collectAsState()
     val remembered by viewModel.rememberedWords.collectAsState()
     val forgotten by viewModel.forgottenWords.collectAsState()
@@ -38,6 +48,20 @@ fun HomeScreen(navController: NavController, innerPadding: PaddingValues, viewMo
     val progress by viewModel.progress.collectAsState()
     val totalWords by viewModel.totalWords.collectAsState()
     val learnedWords by viewModel.learnedWords.collectAsState()
+    
+    // 从LearningViewModel获取今日已学习单词数
+    val todayLearned by learningViewModel.todayLearned.collectAsState()
+    
+    // 添加隐藏的刷新功能
+    var tapCount by remember { mutableStateOf(0) }
+    val context = LocalContext.current
+    
+    // 首次显示时自动刷新
+    LaunchedEffect(Unit) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            viewModel.loadTodayProgress()
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -52,7 +76,20 @@ fun HomeScreen(navController: NavController, innerPadding: PaddingValues, viewMo
             Card(
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        tapCount++
+                        if (tapCount >= 5) {
+                            tapCount = 0
+                            // 显示刷新提示
+                            Toast.makeText(context, "正在刷新数据...", Toast.LENGTH_SHORT).show()
+                            // 强制刷新数据
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                viewModel.loadTodayProgress()
+                            }
+                        }
+                    },
                 elevation = CardDefaults.cardElevation(4.dp)
             ) {
                 Row(
@@ -111,35 +148,83 @@ fun HomeScreen(navController: NavController, innerPadding: PaddingValues, viewMo
                         navController.navigate("wordbookSelector")
                     }
                 },
-                onReviewClick = { navController.navigate("review") }
+                onReviewClick = { navController.navigate("review") },
+                learningPlanViewModel = learningPlanViewModel,
+                todayLearned = todayLearned
             )
         }
 
         item {
-            // 挑战区，合并为单卡片
+            // 挑战区，更新为多游戏卡片
             Card(
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                 elevation = CardDefaults.cardElevation(2.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(Modifier.padding(20.dp)) {
-                    Text("🎲 挑战专区", style = MaterialTheme.typography.titleMedium)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("🎮 趣味记忆", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.weight(1f))
+                        Text("更多", 
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.clickable { navController.navigate("gameCenter") },
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     Spacer(Modifier.height(4.dp))
-                    Text("五词匹配游戏，测测你的记忆力", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(
-                            onClick = { navController.navigate(NavRoute.Challenge.Today) },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("今日挑战")
+                    Text("玩游戏，轻松记单词", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(16.dp))
+                    
+                    // 游戏选择区
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.height(220.dp)
+                    ) {
+                        // 匹配游戏
+                        item {
+                            GameCard(
+                                title = "词义匹配",
+                                description = "连接单词与含义",
+                                icon = Icons.Default.Games,
+                                backgroundColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                onClick = { navController.navigate(NavRoute.Challenge.Today) }
+                            )
                         }
-                        OutlinedButton(
-                            onClick = { navController.navigate(NavRoute.Challenge.Yesterday) },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("昨日挑战")
+                        // 填空游戏
+                        item {
+                            GameCard(
+                                title = "单词填空",
+                                description = "根据提示填写单词",
+                                icon = Icons.Default.Edit,
+                                backgroundColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                                onClick = { navController.navigate("fillInBlanks") }
+                            )
+                        }
+                        // 单词接龙
+                        item {
+                            GameCard(
+                                title = "单词接龙",
+                                description = "用尾字母开始新词",
+                                icon = Icons.Default.Loop,
+                                backgroundColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f),
+                                onClick = { navController.navigate("wordChain") }
+                            )
+                        }
+                        // 速记挑战
+                        item {
+                            GameCard(
+                                title = "速记挑战",
+                                description = "限时记忆单词列表",
+                                icon = Icons.Default.Timer,
+                                backgroundColor = MaterialTheme.colorScheme.error.copy(alpha = 0.2f),
+                                onClick = { navController.navigate("memoryChallenge") }
+                            )
                         }
                     }
                 }
@@ -265,6 +350,65 @@ fun FeatureCard(
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1
             )
+        }
+    }
+}
+
+@Composable
+fun GameCard(
+    title: String,
+    description: String,
+    icon: ImageVector,
+    backgroundColor: Color,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(0.95f)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(
+                        color = backgroundColor,
+                        shape = RoundedCornerShape(12.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = title,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    maxLines = 1
+                )
+            }
         }
     }
 }

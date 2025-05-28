@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.wordlearn.data.LearningPlanRepository
+import com.example.wordlearn.ui.viewmodel.LearningPlanViewModel
 import kotlin.math.min
 
 @Composable
@@ -33,23 +34,21 @@ fun WordbookCard(
     learnedWords: Int,
     onSelectBookClick: () -> Unit,
     onStudyClick: () -> Unit,
-    onReviewClick: () -> Unit
+    onReviewClick: () -> Unit,
+    learningPlanViewModel: LearningPlanViewModel,
+    todayLearned: Int
 ) {
-    // 从LearningPlanViewModel获取用户设置的每日学习目标
-    val context = LocalContext.current
-    val learningPlanRepository = remember { LearningPlanRepository(context) }
-    val learningPlanFlow = remember { learningPlanRepository.learningPlan }
     var dailyNewWordsTarget by remember { mutableStateOf(10) } // 默认值
     var dailyReviewWordsTarget by remember { mutableStateOf(20) } // 默认值
     
-    // 监听学习计划变化，获取用户设置的目标
-    LaunchedEffect(Unit) {
-        learningPlanFlow.collect { plan ->
-            plan?.let {
-                dailyNewWordsTarget = it.dailyGoal.newWordsCount
-                dailyReviewWordsTarget = it.dailyGoal.reviewWordsCount
-            }
-        }
+    // 使用传入的LearningPlanViewModel来获取学习计划
+    val dailyGoal by learningPlanViewModel.dailyGoal.collectAsState()
+    
+    // 从LearningPlanViewModel获取学习目标
+    LaunchedEffect(dailyGoal) {
+        dailyNewWordsTarget = dailyGoal.newWordsCount
+        dailyReviewWordsTarget = dailyGoal.reviewWordsCount
+        android.util.Log.d("WordbookCard", "从LearningPlanViewModel更新目标: 新单词=${dailyGoal.newWordsCount}, 复习单词=${dailyGoal.reviewWordsCount}")
     }
     
     // 记录上次值，用于检测变化
@@ -68,14 +67,17 @@ fun WordbookCard(
         }
     }
     
-    // 今日待学习的单词（每日目标与剩余单词数的较小值）
-    val todayLearningWords by remember(newWords, totalWords, learnedWords, dailyNewWordsTarget) { 
-        mutableStateOf(min(dailyNewWordsTarget, totalWords - learnedWords).coerceAtLeast(0))
+    // 计算今日剩余学习目标（与学习界面显示一致）
+    val todayLearningWords by remember(dailyNewWordsTarget, todayLearned) {
+        // 计算剩余可学习数量（与LearningViewModel._totalWords计算方式一致）
+        val remainingToLearn = dailyNewWordsTarget - todayLearned
+        // 如果已完成目标，显示每日目标值（与LearningViewModel保持一致）
+        mutableStateOf(if (remainingToLearn <= 0) dailyNewWordsTarget else remainingToLearn)
     }
     
-    // 今日待复习单词数（不超过设置的每日复习目标）
-    val todayReviewWords by remember(reviewWords, dailyReviewWordsTarget) { 
-        mutableStateOf(min(reviewWords, dailyReviewWordsTarget))
+    // 今日待复习单词数（直接使用实际待复习数量）
+    val todayReviewWords by remember(reviewWords) { 
+        mutableStateOf(reviewWords)
     }
 
     ElevatedCard(
@@ -162,6 +164,9 @@ fun WordbookCard(
                     
                     Spacer(modifier = Modifier.height(20.dp))
                     
+                    // 检查是否完成了学习目标
+                    val isLearningCompleted = dailyNewWordsTarget <= todayLearned
+                    
                     // 学习数据展示区
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -175,19 +180,23 @@ fun WordbookCard(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "$todayLearningWords",
+                                // 如果已完成，显示目标值，否则显示剩余数量
+                                text = if (isLearningCompleted) "✓" else "$todayLearningWords",
                                 style = MaterialTheme.typography.headlineLarge.copy(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 34.sp
                                 ),
-                                color = Color(0xFF3F51B5),
+                                // 已完成时使用成功色
+                                color = if (isLearningCompleted) Color(0xFF4CAF50) else Color(0xFF3F51B5),
                                 textAlign = TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "待学习",
+                                // 已完成时更改文本
+                                text = if (isLearningCompleted) "已完成" else "待学习",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                // 已完成时使用成功色
+                                color = if (isLearningCompleted) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         
@@ -230,19 +239,24 @@ fun WordbookCard(
                             shape = RoundedCornerShape(24.dp),
                             border = ButtonDefaults.outlinedButtonBorder.copy(
                                 width = 1.dp,
-                                brush = androidx.compose.ui.graphics.SolidColor(Color(0xFF3F51B5))
+                                brush = androidx.compose.ui.graphics.SolidColor(
+                                    if (isLearningCompleted) Color(0xFF4CAF50) else Color(0xFF3F51B5)
+                                )
                             ),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Color(0xFF3F51B5)
+                                contentColor = if (isLearningCompleted) Color(0xFF4CAF50) else Color(0xFF3F51B5)
                             )
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Star,
+                                imageVector = if (isLearningCompleted) Icons.Default.Refresh else Icons.Default.Star,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("开始学习", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                if (isLearningCompleted) "继续学习" else "开始学习", 
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
                         
                         // 去复习按钮
